@@ -20,7 +20,7 @@ const Login = ({ setIsAuthenticated }) => {
 
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/api/auth/login",
+        "https://brinventoryapp-eofk.vercel.app/api/auth/login",
         form
       );
       const data = res.data;
