@@ -2,6 +2,7 @@ import express from "express";
 import {
   createStockTransfer,
   getAllTransfers,
+  fetchAvailableQty,
 } from "../controllers/stockTransferController.js";
 import verifyToken from "../middleware/verifyToken.js";
 
@@ -15,5 +16,8 @@ router.post("/", createStockTransfer);
 
 // 📄 Get all stock transfer records
 router.get("/", getAllTransfers);
+
+// 📊 Get available qty for transfer (separate endpoint)
+router.get("/available", fetchAvailableQty);
 
 export default router;

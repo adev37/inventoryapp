@@ -1,10 +1,9 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://brinventoryapp-eofk.vercel.app/api",
+  baseURL: "http://localhost:8000/api",
 });
 
-// Attach the token to every request automatically
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {

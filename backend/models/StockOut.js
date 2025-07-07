@@ -26,7 +26,7 @@ const stockOutSchema = new mongoose.Schema(
       default: Date.now,
     },
     returnDate: {
-      type: Date, // Used only if purpose === "Demo"
+      type: Date,
     },
     reason: {
       type: String,
@@ -38,17 +38,24 @@ const stockOutSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // 👇 Add this for unique Stock Out Number!
     stockOutNo: {
       type: String,
-      required: true, // All new records should have it
-      unique: true, // Prevent duplicates per out batch
+      required: true,
+      unique: true, // ✅ Only this is needed
+    },
+    location: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      required: false,
     },
   },
   {
-    timestamps: true, // Adds createdAt and updatedAt fields
+    timestamps: true,
   }
 );
+
+// ❌ REMOVE this — already declared via field options
+// stockOutSchema.index({ stockOutNo: 1 }, { unique: true });
 
 const StockOut = mongoose.model("StockOut", stockOutSchema);
 export default StockOut;

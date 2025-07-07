@@ -26,11 +26,16 @@ const stockInSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
-    // 🔥 Add this field:
     stockInNo: {
       type: String,
-      required: true, // All new records should have it
-      unique: true, // Optional: batch numbers should be unique
+      required: true,
+      unique: true,
+    },
+    // ✅ NEW FIELD FOR RACK/LOCATION
+    location: {
+      type: String,
+      trim: true,
+      default: "", // Optional: you can require this if needed
     },
   },
   {

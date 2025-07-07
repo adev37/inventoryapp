@@ -23,7 +23,7 @@ const stockLedgerSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      default: "Manual", // or "In", "Out", "Transfer In", "Transfer Out"
+      default: "Manual", // e.g., Manual, In, Out, Transfer In, Transfer Out
     },
     purpose: {
       type: String,
@@ -37,30 +37,35 @@ const stockLedgerSchema = new mongoose.Schema(
       default: Date.now,
     },
     returnDate: {
-      type: Date, // Only for "Demo" purposes
+      type: Date, // Only for Demo purposes
     },
     returned: {
-      type: Boolean, // Used for Demo returns
+      type: Boolean, // Only used for Demo returns
     },
     referenceId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "StockLedger", // Links this entry to another ledger entry if needed
+      ref: "StockLedger", // Links to another ledger entry (e.g., return)
     },
-    // --- Add these fields for tracking numbers! ---
     stockInNo: {
       type: String,
-      default: null, // Only for IN (and Demo Return IN)
+      default: null,
       index: true,
     },
     stockOutNo: {
       type: String,
-      default: null, // Only for OUT (and Demo Return IN if you want traceability)
+      default: null,
       index: true,
+    },
+    // ✅ NEW: Rack-level location support
+    location: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      default: null,
     },
   },
   { timestamps: true }
 );
 
-// ✅ Prevent OverwriteModelError in hot reload
+// ✅ Prevent OverwriteModelError during development with hot reload
 export default mongoose.models.StockLedger ||
   mongoose.model("StockLedger", stockLedgerSchema);

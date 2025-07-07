@@ -8,21 +8,16 @@ const StockLedger = () => {
   const [filteredEntries, setFilteredEntries] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Filters
   const [searchText, setSearchText] = useState("");
-  const [actionType, setActionType] = useState(""); // "", "IN", "OUT"
-  const [purpose, setPurpose] = useState(""); // for the new filter
+  const [actionType, setActionType] = useState("");
+  const [purpose, setPurpose] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  // For Purpose dropdown values
   const [allPurposes, setAllPurposes] = useState([]);
-
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 11;
 
-  // Fetch data
   useEffect(() => {
     fetchLedger();
   }, []);
@@ -36,8 +31,6 @@ const StockLedger = () => {
       );
       setEntries(sorted);
       setFilteredEntries(sorted);
-
-      // Collect all unique purposes
       const purposes = Array.from(
         new Set(res.data.map((e) => e.purpose).filter(Boolean))
       );
@@ -52,13 +45,11 @@ const StockLedger = () => {
     }
   };
 
-  // Apply filters
   useEffect(() => {
     let filtered = [...entries];
+    const lower = searchText.toLowerCase();
 
-    // Search filter
     if (searchText.trim()) {
-      const lower = searchText.toLowerCase();
       filtered = filtered.filter(
         (e) =>
           e.item?.name?.toLowerCase().includes(lower) ||
@@ -66,18 +57,12 @@ const StockLedger = () => {
           e.warehouse?.name?.toLowerCase().includes(lower)
       );
     }
-
-    // Action filter
     if (actionType) {
       filtered = filtered.filter((e) => e.action === actionType);
     }
-
-    // Purpose filter
     if (purpose) {
       filtered = filtered.filter((e) => e.purpose === purpose);
     }
-
-    // Date Range filter
     if (dateFrom) {
       filtered = filtered.filter((e) => new Date(e.date) >= new Date(dateFrom));
     }
@@ -101,6 +86,7 @@ const StockLedger = () => {
       Item: entry.item?.name || "-",
       "Model No.": entry.item?.modelNo || "-",
       Warehouse: entry.warehouse?.name || "-",
+      "Rack/Location": entry.locationDisplay || "-", // ✅ Use display name
       "Qty (+/-)": entry.quantity,
       Action: entry.action,
       Purpose: entry.purpose || "-",
@@ -123,13 +109,11 @@ const StockLedger = () => {
     saveAs(blob, "Stock_Ledger.xlsx");
   };
 
-  // Pagination
   const indexOfLast = currentPage * itemsPerPage;
   const indexOfFirst = indexOfLast - itemsPerPage;
   const currentItems = filteredEntries.slice(indexOfFirst, indexOfLast);
   const totalPages = Math.ceil(filteredEntries.length / itemsPerPage);
 
-  // Reset filters
   const handleReset = () => {
     setSearchText("");
     setActionType("");
@@ -217,6 +201,7 @@ const StockLedger = () => {
                 <th className="p-2 border min-w-[180px]">Item</th>
                 <th className="p-2 border">Model No.</th>
                 <th className="p-2 border min-w-[200px]">Warehouse</th>
+                <th className="p-2 border min-w-[120px]">Rack / Location</th>
                 <th className="p-2 border">Qty (+/-)</th>
                 <th className="p-2 border">Action</th>
                 <th className="p-2 border">Purpose</th>
@@ -224,7 +209,7 @@ const StockLedger = () => {
               </tr>
             </thead>
             <tbody>
-              {currentItems.map((entry, idx) => (
+              {currentItems.map((entry) => (
                 <tr key={entry._id} className="border-t hover:bg-gray-50">
                   <td className="p-2 border">{formatDate(entry.date)}</td>
                   <td className="p-2 border text-center">
@@ -233,13 +218,10 @@ const StockLedger = () => {
                   <td className="p-2 border text-center">
                     {entry.stockOutNo || "-"}
                   </td>
-                  <td className="p-2 border min-w-[180px]">
-                    {entry.item?.name || "-"}
-                  </td>
+                  <td className="p-2 border">{entry.item?.name || "-"}</td>
                   <td className="p-2 border">{entry.item?.modelNo || "-"}</td>
-                  <td className="p-2 border min-w-[200px]">
-                    {entry.warehouse?.name || "-"}
-                  </td>
+                  <td className="p-2 border">{entry.warehouse?.name || "-"}</td>
+                  <td className="p-2 border">{entry.locationDisplay || "-"}</td>
                   <td
                     className={`p-2 border text-center ${
                       entry.quantity > 0 ? "text-green-600" : "text-red-600"
@@ -248,9 +230,7 @@ const StockLedger = () => {
                   </td>
                   <td className="p-2 border">{entry.action}</td>
                   <td className="p-2 border">{entry.purpose || "-"}</td>
-                  <td className="p-2 border min-w-[180px]">
-                    {entry.remarks || "-"}
-                  </td>
+                  <td className="p-2 border">{entry.remarks || "-"}</td>
                 </tr>
               ))}
             </tbody>

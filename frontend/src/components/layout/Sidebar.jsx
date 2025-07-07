@@ -2,25 +2,27 @@ import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import SidebarDropdown from "./SidebarDropdown";
 
-// Lucide icons - only what you need, clearly mapped!
+// Lucide icons
 import {
-  LayoutDashboard, // Dashboard
-  Package, // Inventory group icon
-  List, // Item List
-  PlusCircle, // Add Item/Warehouse
-  Boxes, // Warehouses
-  Wrench, // Stock Adjustment
-  MoveHorizontal, // Stock Movement group
-  ArrowDownCircle, // Stock In
-  ArrowUpCircle, // Stock Out
-  Eye, // View Stock Out (more visual than another up arrow)
-  Repeat, // Transfers group & Initiate Transfer
-  FileText, // Transfer/Stock Ledger
-  Undo2, // Returns group & View Returns
-  FilePlus2, // Add Demo Return
-  BarChart2, // Reports group
-  Warehouse, // Current Stock
-  LogOut, // Logout
+  LayoutDashboard,
+  Package,
+  List,
+  PlusCircle,
+  Wrench,
+  MoveHorizontal,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Eye,
+  Repeat,
+  FileText,
+  Undo2,
+  FilePlus2,
+  BarChart2,
+  Warehouse,
+  LogOut,
+  Map,
+  MapPin,
+  PlusSquare,
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -79,11 +81,27 @@ const Sidebar = () => {
               Add Item
             </NavLink>
             <NavLink
+              to="/add-location"
+              className={({ isActive }) =>
+                `${linkStyle} ${isActive ? activeStyle : ""}`
+              }>
+              <MapPin className="w-4 h-4" />
+              Add Location
+            </NavLink>
+            <NavLink
+              to="/locations"
+              className={({ isActive }) =>
+                `${linkStyle} ${isActive ? activeStyle : ""}`
+              }>
+              <Map className="w-4 h-4" />
+              Locations
+            </NavLink>
+            <NavLink
               to="/warehouses"
               className={({ isActive }) =>
                 `${linkStyle} ${isActive ? activeStyle : ""}`
               }>
-              <Boxes className="w-4 h-4" />
+              <Warehouse className="w-4 h-4" />
               Warehouses
             </NavLink>
             <NavLink
@@ -91,7 +109,7 @@ const Sidebar = () => {
               className={({ isActive }) =>
                 `${linkStyle} ${isActive ? activeStyle : ""}`
               }>
-              <PlusCircle className="w-4 h-4" />
+              <PlusSquare className="w-4 h-4" />
               Add Warehouse
             </NavLink>
             <NavLink
@@ -159,7 +177,7 @@ const Sidebar = () => {
           {/* Returns */}
           <SidebarDropdown icon={<Undo2 className="w-5 h-5" />} title="Returns">
             <NavLink
-              to="/Add-demo-returns"
+              to="/add-demo-returns"
               className={({ isActive }) =>
                 `${linkStyle} ${isActive ? activeStyle : ""}`
               }>

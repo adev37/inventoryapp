@@ -17,20 +17,21 @@ const CurrentStock = () => {
   const [stock, setStock] = useState([]);
   const [filteredStock, setFilteredStock] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [searchText, setSearchText] = useState("");
   const [selectedWarehouse, setSelectedWarehouse] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState("");
   const [sortBy, setSortBy] = useState("latest");
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
-  // Fetch stock and warehouses
   useEffect(() => {
     fetchCurrentStock();
     fetchWarehouses();
+    fetchLocations();
   }, []);
 
-  // Fetch Functions
   const fetchCurrentStock = async () => {
     setLoading(true);
     try {
@@ -38,10 +39,7 @@ const CurrentStock = () => {
       setStock(res.data);
       setFilteredStock(res.data);
     } catch (error) {
-      console.error(
-        "Error fetching current stock:",
-        error.response?.data || error.message
-      );
+      console.error("Error fetching current stock:", error);
     } finally {
       setLoading(false);
     }
@@ -56,13 +54,20 @@ const CurrentStock = () => {
     }
   };
 
-  // Filtering and Sorting Logic
+  const fetchLocations = async () => {
+    try {
+      const res = await API.get("/locations");
+      setLocations(res.data);
+    } catch (err) {
+      console.error("Error fetching locations:", err);
+    }
+  };
+
   useEffect(() => {
     let filtered = [...stock];
+    const lower = searchText.toLowerCase();
 
-    // Search filter
     if (searchText.trim()) {
-      const lower = searchText.toLowerCase();
       filtered = filtered.filter(
         (entry) =>
           (entry.item && entry.item.toLowerCase().includes(lower)) ||
@@ -71,21 +76,23 @@ const CurrentStock = () => {
       );
     }
 
-    // Warehouse filter
     if (selectedWarehouse) {
       filtered = filtered.filter(
         (entry) => entry.warehouseId === selectedWarehouse
       );
     }
 
-    // Sorting
-    filtered = filtered.sort((a, b) => {
+    if (selectedLocation) {
+      filtered = filtered.filter(
+        (entry) =>
+          entry.location?.toLowerCase?.() ===
+          locations.find((l) => l._id === selectedLocation)?.name?.toLowerCase()
+      );
+    }
+
+    filtered.sort((a, b) => {
       switch (sortBy) {
         case "latest":
-          // Use a field like updatedAt or createdAt; fallback to original order if not available
-          if (a.updatedAt && b.updatedAt) {
-            return new Date(b.updatedAt) - new Date(a.updatedAt);
-          }
           return 0;
         case "nameAsc":
           return (a.item || "").localeCompare(b.item || "");
@@ -106,24 +113,24 @@ const CurrentStock = () => {
 
     setFilteredStock(filtered);
     setCurrentPage(1);
-  }, [searchText, selectedWarehouse, sortBy, stock]);
+  }, [searchText, selectedWarehouse, selectedLocation, sortBy, stock]);
 
-  // Reset Filters
   const handleReset = () => {
     setSearchText("");
     setSelectedWarehouse("");
+    setSelectedLocation("");
     setSortBy("latest");
     setFilteredStock(stock);
     setCurrentPage(1);
   };
 
-  // Export to Excel
   const exportToExcel = () => {
     const data = filteredStock.map((entry) => ({
       Item: entry.item,
       "Model No.": entry.modelNo,
       Company: entry.companyName,
       Warehouse: entry.warehouse,
+      Location: entry.location || "",
       Quantity: entry.quantity,
     }));
 
@@ -139,7 +146,6 @@ const CurrentStock = () => {
     saveAs(blob, "Current_Stock_Report.xlsx");
   };
 
-  // Pagination logic
   const indexOfLast = currentPage * itemsPerPage;
   const indexOfFirst = indexOfLast - itemsPerPage;
   const currentItems = filteredStock.slice(indexOfFirst, indexOfLast);
@@ -167,6 +173,18 @@ const CurrentStock = () => {
           {warehouses.map((wh) => (
             <option key={wh._id} value={wh._id}>
               {wh.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={selectedLocation}
+          onChange={(e) => setSelectedLocation(e.target.value)}
+          className="border px-3 py-2 rounded w-60">
+          <option value="">📦 All Racks/Locations</option>
+          {locations.map((loc) => (
+            <option key={loc._id} value={loc._id}>
+              {loc.name}
             </option>
           ))}
         </select>
@@ -209,6 +227,7 @@ const CurrentStock = () => {
                 <th className="p-2 border">Model</th>
                 <th className="p-2 border">Company</th>
                 <th className="p-2 border">Warehouse</th>
+                <th className="p-2 border">Rack/Location</th>
                 <th className="p-2 border">Qty Available</th>
               </tr>
             </thead>
@@ -219,6 +238,7 @@ const CurrentStock = () => {
                   <td className="p-2 border">{entry.modelNo}</td>
                   <td className="p-2 border">{entry.companyName}</td>
                   <td className="p-2 border">{entry.warehouse}</td>
+                  <td className="p-2 border">{entry.location || "—"}</td>
                   <td
                     className={`p-2 border font-semibold ${
                       entry.quantity < 0

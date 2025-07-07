@@ -1,14 +1,13 @@
-// controllers/stockAdjustmentController.js
-
 import StockAdjustment from "../models/StockAdjustment.js";
 import StockLedger from "../models/StockLedger.js";
 
-// ➕ POST: Create a stock adjustment
+// ➕ POST: Create a stock adjustment with rack/location
 export const createStockAdjustment = async (req, res) => {
   try {
-    const { item, warehouse, quantity, action, reason, date } = req.body;
+    const { item, warehouse, quantity, action, reason, date, location } =
+      req.body;
 
-    // Create the stock adjustment entry
+    // ✅ 1. Create the stock adjustment entry
     const adjustment = await StockAdjustment.create({
       item,
       warehouse,
@@ -16,18 +15,20 @@ export const createStockAdjustment = async (req, res) => {
       action,
       reason,
       date,
+      location: location?.trim() || "", // optional
     });
 
-    // Add to Stock Ledger with forced "Adjusted" purpose
+    // ✅ 2. Add to Stock Ledger with forced "Adjusted" purpose
     await StockLedger.create({
       item,
       warehouse,
       quantity: action === "IN" ? Math.abs(quantity) : -Math.abs(quantity),
       action,
       type: "Adjustment",
-      purpose: "Adjusted", // ✅ fixed purpose
+      purpose: "Adjusted", // fixed purpose
       remarks: reason,
       date,
+      location: location?.trim() || "", // ✅ now included in ledger for tracking
     });
 
     res.status(201).json({

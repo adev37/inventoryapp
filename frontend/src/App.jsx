@@ -31,10 +31,12 @@ import AddDemoItems from "./pages/demo/AddDemoItems";
 import ViewDemoReturns from "./pages/demo/ViewDemoReturns";
 import StockTransfer from "./pages/stock-transfer/StockTransfer";
 import TransferReport from "./pages/stock-transfer/TransferReport";
-
-// ✅ Import Stock Adjustment page
 import AdjustStock from "./pages/stock/AdjustStock";
 import ViewStockOut from "./pages/stock/ViewStockOut";
+import AddLocation from "./pages/Location/AddLocation";
+import LocationList from "./pages/Location/LocationList";
+
+// ✅ Removed invalid backend import
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -85,25 +87,26 @@ const App = () => {
             <Route path="add-item" element={<AddItem />} />
             <Route path="warehouses" element={<WarehouseList />} />
             <Route path="add-warehouse" element={<AddWarehouse />} />
+            <Route path="add-location" element={<AddLocation />} />
+            <Route path="locations" element={<LocationList />} />
             <Route path="stock-in" element={<StockIn />} />
             <Route path="stock-out" element={<StockOut />} />
             <Route path="view-stock-out" element={<ViewStockOut />} />
             <Route path="stock" element={<CurrentStock />} />
             <Route path="ledger" element={<StockLedger />} />
-            <Route path="Add-demo-returns" element={<AddDemoItems />} />
+            <Route path="add-demo-returns" element={<AddDemoItems />} />
             <Route path="demo-returns" element={<ViewDemoReturns />} />
             <Route path="stock-transfer" element={<StockTransfer />} />
             <Route path="transfer-report" element={<TransferReport />} />
-            {/* ✅ Stock Adjustment route */}
             <Route path="stock-adjust" element={<AdjustStock />} />
           </Route>
         </Route>
 
-        {/* Catch-All */}
+        {/* Catch-All Route */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
 
-      {/* 🟢 Global Toast Notification Container */}
+      {/* Global Toast Notification */}
       <ToastContainer position="top-right" autoClose={3000} />
     </Router>
   );

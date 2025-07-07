@@ -4,58 +4,51 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const AddStockIn = () => {
-  // Items array for multiple stock-ins
   const [items, setItems] = useState([
-    { item: "", warehouse: "", quantity: "" },
+    { item: "", warehouse: "", quantity: "", location: "" },
   ]);
-  // To hold the visible search string for each item input
   const [itemSearch, setItemSearch] = useState([""]);
-  // To hold the suggestions for current focused row
   const [itemSuggestions, setItemSuggestions] = useState([]);
-  // To track which row is currently focused for autocomplete
   const [activeSuggestionIdx, setActiveSuggestionIdx] = useState(null);
 
-  // Batch-wide fields
   const [date, setDate] = useState("");
   const [remarks, setRemarks] = useState("");
   const [allItems, setAllItems] = useState([]);
   const [allWarehouses, setAllWarehouses] = useState([]);
+  const [allLocations, setAllLocations] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [itemRes, warehouseRes] = await Promise.all([
+        const [itemRes, warehouseRes, locationRes] = await Promise.all([
           API.get("/items"),
           API.get("/warehouses"),
+          API.get("/locations"),
         ]);
         setAllItems(itemRes.data);
         setAllWarehouses(warehouseRes.data);
+        setAllLocations(locationRes.data);
       } catch (error) {
-        toast.error("❌ Failed to load item or warehouse data.");
+        toast.error("❌ Failed to load item, warehouse, or location data.");
       }
     };
     fetchData();
   }, []);
 
-  // --- Helpers for managing items and search arrays
   const handleItemChange = (index, e) => {
     const updated = [...items];
     updated[index][e.target.name] = e.target.value;
     setItems(updated);
   };
 
-  // Handle the search string for autocomplete
   const handleItemSearch = (index, value) => {
-    // Update search box value
     const updatedSearch = [...itemSearch];
     updatedSearch[index] = value;
     setItemSearch(updatedSearch);
 
-    // Set active row index
     setActiveSuggestionIdx(index);
 
-    // Show filtered suggestions
     if (value.length > 0) {
       setItemSuggestions(
         allItems.filter(
@@ -64,7 +57,6 @@ const AddStockIn = () => {
             item.modelNo.toLowerCase().includes(value.toLowerCase())
         )
       );
-      // Clear previous selection in form state
       handleItemChange(index, { target: { name: "item", value: "" } });
     } else {
       setItemSuggestions([]);
@@ -72,23 +64,24 @@ const AddStockIn = () => {
   };
 
   const handleSelectSuggestion = (index, suggestion) => {
-    // Set the item ID for this row
     handleItemChange(index, {
       target: { name: "item", value: suggestion._id },
     });
-    // Set the visible value for this row
     const updatedSearch = [...itemSearch];
     updatedSearch[index] = `${suggestion.name} (${suggestion.modelNo})`;
     setItemSearch(updatedSearch);
-    // Hide suggestions
     setItemSuggestions([]);
     setActiveSuggestionIdx(null);
   };
 
   const addItem = () => {
-    setItems([...items, { item: "", warehouse: "", quantity: "" }]);
+    setItems([
+      ...items,
+      { item: "", warehouse: "", quantity: "", location: "" },
+    ]);
     setItemSearch([...itemSearch, ""]);
   };
+
   const removeItem = (idx) => {
     if (items.length > 1) {
       setItems(items.filter((_, i) => i !== idx));
@@ -96,41 +89,45 @@ const AddStockIn = () => {
     }
   };
 
-  // Extra: Prevent double submit
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Optional: prevent duplicate item/warehouse combos
     const hasDuplicate = items.some(
       (item, idx) =>
         items.findIndex(
-          (i) => i.item === item.item && i.warehouse === item.warehouse
+          (i) =>
+            i.item === item.item &&
+            i.warehouse === item.warehouse &&
+            i.location === item.location
         ) !== idx
     );
     if (hasDuplicate) {
-      toast.error("❌ Duplicate item & warehouse entries found.");
+      toast.error("❌ Duplicate item, warehouse & location entries found.");
       return;
     }
 
     setLoading(true);
     try {
-      await API.post("/stock-in", {
-        items,
-        date,
-        remarks,
-      });
+      await API.post("/stock-in", { items, date, remarks });
       toast.success("✅ Stock In recorded!");
-      setItems([{ item: "", warehouse: "", quantity: "" }]);
+      setItems([{ item: "", warehouse: "", quantity: "", location: "" }]);
       setItemSearch([""]);
       setDate("");
       setRemarks("");
     } catch (err) {
       const msg =
-        err?.response?.data?.message ||
-        "❌ Failed to record stock in. Please try again.";
+        err?.response?.data?.message || "❌ Failed to record stock in.";
       toast.error(msg);
     }
     setLoading(false);
+  };
+
+  const getLocationsForWarehouse = (warehouseId) => {
+    return allLocations.filter((l) => {
+      const locWarehouse =
+        typeof l.warehouse === "object" ? l.warehouse._id : l.warehouse;
+      return locWarehouse === warehouseId;
+    });
   };
 
   return (
@@ -139,13 +136,13 @@ const AddStockIn = () => {
       <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
         📥 Stock In
       </h2>
-      <div className="bg-white shadow-md p-6 rounded-lg max-w-3xl">
+      <div className="bg-white shadow-md p-6 rounded-lg max-w-4xl">
         <form onSubmit={handleSubmit} className="space-y-2">
           {items.map((itm, idx) => (
             <div
               key={idx}
-              className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b pb-2 mb-2 relative">
-              {/* Autocomplete Item Input */}
+              className="grid grid-cols-1 md:grid-cols-4 gap-4 border-b pb-2 mb-2 relative">
+              {/* Item Autocomplete */}
               <div className="relative">
                 <label className="block mb-1 text-sm font-medium">
                   Search Item
@@ -156,31 +153,29 @@ const AddStockIn = () => {
                   onChange={(e) => handleItemSearch(idx, e.target.value)}
                   placeholder="Type to search item"
                   className="w-full border border-gray-300 rounded px-3 py-2"
-                  autoComplete="off"
                   required
+                  autoComplete="off"
                 />
-                {/* Suggestions Dropdown */}
                 {itemSearch[idx] &&
                   activeSuggestionIdx === idx &&
                   itemSuggestions.length > 0 && (
                     <ul className="absolute bg-white border border-gray-200 rounded shadow z-10 w-full max-h-44 overflow-auto mt-1">
-                      {itemSuggestions.map((suggestion) => (
+                      {itemSuggestions.map((s) => (
                         <li
-                          key={suggestion._id}
+                          key={s._id}
                           className="px-3 py-2 cursor-pointer hover:bg-blue-100"
-                          onClick={() =>
-                            handleSelectSuggestion(idx, suggestion)
-                          }>
-                          {suggestion.name} ({suggestion.modelNo})
+                          onClick={() => handleSelectSuggestion(idx, s)}>
+                          {s.name} ({s.modelNo})
                         </li>
                       ))}
                     </ul>
                   )}
               </div>
+
               {/* Warehouse Select */}
               <div>
                 <label className="block mb-1 text-sm font-medium">
-                  Select Warehouse
+                  Warehouse
                 </label>
                 <select
                   name="warehouse"
@@ -196,7 +191,27 @@ const AddStockIn = () => {
                   ))}
                 </select>
               </div>
-              {/* Quantity Input */}
+
+              {/* Rack Location */}
+              <div>
+                <label className="block mb-1 text-sm font-medium">
+                  Rack Location
+                </label>
+                <select
+                  name="location"
+                  value={itm.location}
+                  onChange={(e) => handleItemChange(idx, e)}
+                  className="w-full border border-gray-300 rounded px-3 py-2">
+                  <option value="">Select Rack</option>
+                  {getLocationsForWarehouse(itm.warehouse).map((l) => (
+                    <option key={l._id} value={l._id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Quantity */}
               <div>
                 <label className="block mb-1 text-sm font-medium">
                   Quantity
@@ -212,9 +227,10 @@ const AddStockIn = () => {
                   min={1}
                 />
               </div>
+
               {/* Remove Button */}
               {items.length > 1 && (
-                <div className="md:col-span-3 flex justify-end">
+                <div className="md:col-span-4 flex justify-end">
                   <button
                     type="button"
                     onClick={() => removeItem(idx)}
@@ -225,14 +241,16 @@ const AddStockIn = () => {
               )}
             </div>
           ))}
-          {/* Add Another Item Button */}
+
+          {/* Add Button */}
           <button
             type="button"
             onClick={addItem}
             className="bg-blue-500 text-white px-3 py-1 rounded mb-3">
             + Add Another Item
           </button>
-          {/* Batch-wide fields below */}
+
+          {/* Date and Remarks */}
           <div>
             <label className="block mb-1 text-sm font-medium">Date</label>
             <input
@@ -254,6 +272,7 @@ const AddStockIn = () => {
               className="w-full border border-gray-300 rounded px-3 py-2"
             />
           </div>
+
           <button
             type="submit"
             disabled={loading}

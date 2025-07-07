@@ -2,6 +2,11 @@ import mongoose from "mongoose";
 
 const stockTransferSchema = new mongoose.Schema(
   {
+    transferNo: {
+      type: String,
+      required: true,
+      unique: true, // ✅ Ensure uniqueness
+    },
     fromWarehouse: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Warehouse",
@@ -29,16 +34,25 @@ const stockTransferSchema = new mongoose.Schema(
     note: {
       type: String,
     },
-    // ✅ Purpose for audit reference
     purpose: {
       type: String,
       default: "Transferred",
+    },
+    fromLocation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    toLocation: {
+      type: String,
+      trim: true,
+      default: "",
     },
   },
   { timestamps: true }
 );
 
-// ✅ Safe export (handles Vercel/Render hot reloads)
+// ✅ Safe export
 const StockTransfer =
   mongoose.models.StockTransfer ||
   mongoose.model("StockTransfer", stockTransferSchema);

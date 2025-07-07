@@ -1,55 +1,57 @@
 import StockIn from "../models/StockIn.js";
 import StockLedger from "../models/StockLedger.js";
+import getNextSequence from "../utils/getNextSequence.js";
 
-// Helper: Generate next Stock In Number
-async function generateNextStockInNo() {
-  // Find latest by createdAt
-  const latest = await StockIn.findOne({})
-    .sort({ createdAt: -1 })
-    .select("stockInNo")
-    .lean();
-  let next = 1;
-  if (latest && latest.stockInNo) {
-    const matches = latest.stockInNo.match(/\d+$/);
-    if (matches) next = parseInt(matches[0], 10) + 1;
-  }
-  return `SI-${String(next).padStart(5, "0")}`;
-}
-
-// ➕ Create Stock In Entry (Batch version, with StockInNo)
+// ➕ Create Stock In Entry (with auto-incremented stockInNo)
 export const createStockIn = async (req, res) => {
   try {
-    const { items, date, remarks } = req.body; // items is an array: [{item, warehouse, quantity}]
+    const { items, date, remarks } = req.body;
+
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "No items provided." });
     }
 
-    // Generate Stock In No. for the whole batch
-    const stockInNo = await generateNextStockInNo();
+    // ✅ Use Counter model for consistent unique stockInNo
+    let stockInNo;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const seq = await getNextSequence("stockIn");
+      stockInNo = `SI-${String(seq).padStart(5, "0")}`;
 
-    let createdEntries = [];
-    let ledgerEntries = [];
+      // Check if already exists (very rare)
+      const existing = await StockIn.findOne({ stockInNo });
+      if (!existing) break;
+
+      if (attempt === 2) {
+        return res
+          .status(500)
+          .json({ message: "Failed to generate unique stockInNo." });
+      }
+    }
+
+    const createdEntries = [];
+    const ledgerEntries = [];
 
     for (const entry of items) {
-      const { item, warehouse, quantity } = entry;
+      const { item, warehouse, quantity, location } = entry;
       if (!item || !warehouse || !quantity) continue;
 
-      // 1️⃣ Save entry in StockIn collection
+      // 1️⃣ Create StockIn entry
       const stockIn = await StockIn.create({
         item,
         warehouse,
         quantity,
         date,
         remarks,
-        stockInNo, // <-- Save Stock In Number!
+        stockInNo,
+        location,
       });
       createdEntries.push(stockIn);
 
-      // 2️⃣ Reflect it in Stock Ledger
+      // 2️⃣ Reflect in StockLedger
       const ledger = await StockLedger.create({
         item,
         warehouse,
-        quantity: Math.abs(quantity), // Always positive
+        quantity: Math.abs(quantity),
         action: "IN",
         type: "In",
         purpose: null,
@@ -57,7 +59,8 @@ export const createStockIn = async (req, res) => {
         returnDate: null,
         date,
         remarks,
-        stockInNo, // <-- Save in Ledger too!
+        stockInNo,
+        location,
       });
       ledgerEntries.push(ledger);
     }

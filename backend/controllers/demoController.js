@@ -67,6 +67,7 @@ export const returnDemoBatch = async (req, res) => {
       const returned = await StockLedger.create({
         item: out.item,
         warehouse: out.warehouse,
+        location: out.location, // ✅ Preserve rack/location
         quantity: Math.abs(out.quantity),
         action: "IN",
         type: "Return In",

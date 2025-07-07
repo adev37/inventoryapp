@@ -6,11 +6,13 @@ import "react-toastify/dist/ReactToastify.css";
 const AdjustStock = () => {
   const [items, setItems] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [availableQty, setAvailableQty] = useState(null);
 
   const [form, setForm] = useState({
     item: "",
     warehouse: "",
+    location: "",
     quantity: "",
     action: "IN",
     reason: "",
@@ -19,12 +21,14 @@ const AdjustStock = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [itemsRes, warehouseRes] = await Promise.all([
+        const [itemsRes, warehouseRes, locationRes] = await Promise.all([
           API.get("/items"),
           API.get("/warehouses"),
+          API.get("/locations"),
         ]);
         setItems(itemsRes.data);
         setWarehouses(warehouseRes.data);
+        setLocations(locationRes.data);
       } catch (err) {
         toast.error("❌ Failed to load initial data.");
       }
@@ -34,14 +38,23 @@ const AdjustStock = () => {
 
   useEffect(() => {
     const fetchAvailable = async () => {
-      const { item, warehouse } = form;
+      const { item, warehouse, location } = form;
       if (item && warehouse) {
         try {
           const res = await API.get("/current-stock");
-          const match = res.data.find(
-            (e) => e.itemId === item && e.warehouseId === warehouse
+
+          const matches = res.data.filter(
+            (e) =>
+              e.itemId === item &&
+              e.warehouseId === warehouse &&
+              (location
+                ? e.location?.trim?.().toLowerCase() ===
+                  locations.find((l) => l._id === location)?.name?.toLowerCase()
+                : true)
           );
-          setAvailableQty(match?.quantity ?? 0);
+
+          const totalQty = matches.reduce((sum, row) => sum + row.quantity, 0);
+          setAvailableQty(totalQty);
         } catch {
           setAvailableQty(null);
           toast.error("⚠️ Couldn't fetch available stock.");
@@ -49,7 +62,7 @@ const AdjustStock = () => {
       }
     };
     fetchAvailable();
-  }, [form.item, form.warehouse]);
+  }, [form.item, form.warehouse, form.location, locations]);
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -78,6 +91,7 @@ const AdjustStock = () => {
       setForm({
         item: "",
         warehouse: "",
+        location: "",
         quantity: "",
         action: "IN",
         reason: "",
@@ -86,6 +100,16 @@ const AdjustStock = () => {
     } catch (err) {
       toast.error(err.response?.data?.message || "❌ Failed to adjust stock.");
     }
+  };
+
+  // ✅ Deduplicate locations by name
+  const getUniqueLocations = () => {
+    const seen = new Set();
+    return locations.filter((loc) => {
+      if (seen.has(loc.name)) return false;
+      seen.add(loc.name);
+      return true;
+    });
   };
 
   return (
@@ -99,6 +123,7 @@ const AdjustStock = () => {
         <form
           onSubmit={handleSubmit}
           className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Item */}
           <div>
             <label className="block mb-1 text-sm font-medium">
               Select Item
@@ -117,6 +142,7 @@ const AdjustStock = () => {
             </select>
           </div>
 
+          {/* Warehouse */}
           <div>
             <label className="block mb-1 text-sm font-medium">
               Select Warehouse
@@ -135,6 +161,26 @@ const AdjustStock = () => {
             </select>
           </div>
 
+          {/* Location (Optional) */}
+          <div>
+            <label className="block mb-1 text-sm font-medium">
+              Rack / Location (Optional)
+            </label>
+            <select
+              name="location"
+              value={form.location}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded px-3 py-2">
+              <option value="">— Select Location —</option>
+              {getUniqueLocations().map((loc) => (
+                <option key={loc._id} value={loc._id}>
+                  {loc.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Action */}
           <div>
             <label className="block mb-1 text-sm font-medium">Action</label>
             <select
@@ -147,6 +193,7 @@ const AdjustStock = () => {
             </select>
           </div>
 
+          {/* Quantity */}
           <div>
             <label className="block mb-1 text-sm font-medium">Quantity</label>
             <input
@@ -160,6 +207,7 @@ const AdjustStock = () => {
             />
           </div>
 
+          {/* Reason */}
           <div className="md:col-span-2">
             <label className="block mb-1 text-sm font-medium">
               Reason / Remarks

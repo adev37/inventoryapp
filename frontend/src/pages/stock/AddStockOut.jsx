@@ -5,12 +5,11 @@ import "react-toastify/dist/ReactToastify.css";
 
 const AddStockOut = () => {
   const [items, setItems] = useState([
-    { item: "", warehouse: "", quantity: "" },
+    { item: "", warehouse: "", location: "", locationName: "", quantity: "" },
   ]);
   const [itemSearch, setItemSearch] = useState([""]);
   const [itemSuggestions, setItemSuggestions] = useState([]);
   const [activeSuggestionIdx, setActiveSuggestionIdx] = useState(null);
-
   const [purpose, setPurpose] = useState("");
   const [reason, setReason] = useState("");
   const [tenderNo, setTenderNo] = useState("");
@@ -18,48 +17,75 @@ const AddStockOut = () => {
   const [returnDate, setReturnDate] = useState("");
   const [allItems, setAllItems] = useState([]);
   const [allWarehouses, setAllWarehouses] = useState([]);
+  const [allLocations, setAllLocations] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // ✅ Fetch dropdown data
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [itemRes, warehouseRes] = await Promise.all([
+        const [itemRes, warehouseRes, locationRes] = await Promise.all([
           API.get("/items"),
           API.get("/warehouses"),
+          API.get("/locations"),
         ]);
         setAllItems(itemRes.data);
         setAllWarehouses(warehouseRes.data);
+        setAllLocations(locationRes.data);
       } catch {
-        toast.error("❌ Failed to load items or warehouses");
+        toast.error("❌ Failed to load items, warehouses or locations");
       }
     };
     fetchData();
   }, []);
 
-  const handleItemChange = (index, e) => {
+  // ✅ Fetch rack location based on selected item+warehouse
+  const handleItemChange = async (index, e) => {
     const updated = [...items];
     updated[index][e.target.name] = e.target.value;
     setItems(updated);
+
+    const { item: selectedItem, warehouse: selectedWarehouse } = updated[index];
+
+    if (selectedItem && selectedWarehouse) {
+      try {
+        const res = await API.get(
+          `/current-stock?item=${selectedItem}&warehouse=${selectedWarehouse}`
+        );
+        const stockEntries = res.data.filter((entry) => entry.quantity > 0);
+
+        if (stockEntries.length > 0) {
+          const rackName = stockEntries[0].location;
+          const locationObj = allLocations.find((loc) => loc.name === rackName);
+          updated[index].location = locationObj?._id || null;
+          updated[index].locationName = locationObj?.name || "Rack Unknown";
+        } else {
+          updated[index].location = null;
+          updated[index].locationName = "Rack Unknown";
+        }
+
+        setItems([...updated]);
+      } catch (error) {
+        console.error("Error fetching location", error);
+      }
+    }
   };
 
+  // ✅ Search and suggest item
   const handleItemSearch = (index, value) => {
-    // Update search box value
     const updatedSearch = [...itemSearch];
     updatedSearch[index] = value;
     setItemSearch(updatedSearch);
-
     setActiveSuggestionIdx(index);
 
     if (value.length > 0) {
-      setItemSuggestions(
-        allItems.filter(
-          (item) =>
-            item.name.toLowerCase().includes(value.toLowerCase()) ||
-            item.modelNo.toLowerCase().includes(value.toLowerCase())
-        )
+      const filtered = allItems.filter(
+        (item) =>
+          item.name.toLowerCase().includes(value.toLowerCase()) ||
+          item.modelNo.toLowerCase().includes(value.toLowerCase())
       );
-      // Clear item selection in form state
-      handleItemChange(index, { target: { name: "item", value: "" } });
+      setItemSuggestions(filtered);
+      handleItemChange(index, { target: { name: "item", value: "" } }); // reset item
     } else {
       setItemSuggestions([]);
     }
@@ -77,9 +103,13 @@ const AddStockOut = () => {
   };
 
   const addItem = () => {
-    setItems([...items, { item: "", warehouse: "", quantity: "" }]);
+    setItems([
+      ...items,
+      { item: "", warehouse: "", location: "", locationName: "", quantity: "" },
+    ]);
     setItemSearch([...itemSearch, ""]);
   };
+
   const removeItem = (idx) => {
     if (items.length > 1) {
       setItems(items.filter((_, i) => i !== idx));
@@ -91,7 +121,6 @@ const AddStockOut = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Optional: prevent duplicate item/warehouse combos
     const hasDuplicate = items.some(
       (item, idx) =>
         items.findIndex(
@@ -107,7 +136,10 @@ const AddStockOut = () => {
     try {
       const payload = {
         items: items.map((itm) => ({
-          ...itm,
+          item: itm.item,
+          warehouse: itm.warehouse,
+          quantity: itm.quantity,
+          location: itm.location || null,
           purpose,
           reason,
           tenderNo,
@@ -115,10 +147,19 @@ const AddStockOut = () => {
         date,
         returnDate: purpose === "Demo" ? returnDate : undefined,
       };
+
       const res = await API.post("/stock-out", payload);
-      toast.success(res?.data?.message || "Stock Out recorded successfully!");
-      // Reset form
-      setItems([{ item: "", warehouse: "", quantity: "" }]);
+      toast.success(res?.data?.message || "✅ Stock Out recorded!");
+
+      setItems([
+        {
+          item: "",
+          warehouse: "",
+          location: "",
+          locationName: "",
+          quantity: "",
+        },
+      ]);
       setItemSearch([""]);
       setPurpose("");
       setReason("");
@@ -126,8 +167,16 @@ const AddStockOut = () => {
       setDate("");
       setReturnDate("");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "❌ Something went wrong.");
+      const insufficient = err?.response?.data?.insufficient || [];
+      if (insufficient.length > 0) {
+        insufficient.forEach((e) => {
+          toast.error(`❌ ${e.message}`);
+        });
+      } else {
+        toast.error(err?.response?.data?.message || "❌ Something went wrong.");
+      }
     }
+
     setLoading(false);
   };
 
@@ -139,13 +188,13 @@ const AddStockOut = () => {
       </h2>
       <form
         onSubmit={handleSubmit}
-        className="bg-white shadow-md p-6 rounded-lg max-w-3xl">
+        className="bg-white shadow-md p-6 rounded-lg max-w-4xl">
         {items.map((itm, idx) => (
           <div
             key={idx}
-            className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b pb-2 mb-2 relative">
-            {/* Autocomplete for Item */}
-            <div className="relative">
+            className="grid grid-cols-1 md:grid-cols-4 gap-4 border-b pb-2 mb-4 relative">
+            {/* Search Item */}
+            <div className="relative col-span-1">
               <label className="block text-sm font-medium mb-1">
                 Search Item
               </label>
@@ -173,7 +222,8 @@ const AddStockOut = () => {
                   </ul>
                 )}
             </div>
-            {/* Warehouse Select */}
+
+            {/* Warehouse */}
             <div>
               <label className="block text-sm font-medium mb-1">
                 Select Warehouse
@@ -192,7 +242,23 @@ const AddStockOut = () => {
                 ))}
               </select>
             </div>
-            {/* Quantity Input */}
+
+            {/* Location */}
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Rack Location
+              </label>
+              <input
+                type="text"
+                value={
+                  itm.locationName ? `🗄️ ${itm.locationName}` : "Rack Unknown"
+                }
+                disabled
+                className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100"
+              />
+            </div>
+
+            {/* Quantity */}
             <div>
               <label className="block text-sm font-medium mb-1">Quantity</label>
               <input
@@ -206,9 +272,9 @@ const AddStockOut = () => {
                 className="w-full border border-gray-300 rounded px-3 py-2"
               />
             </div>
-            {/* Remove button only if more than one item */}
+
             {items.length > 1 && (
-              <div className="md:col-span-3 flex justify-end">
+              <div className="md:col-span-4 flex justify-end">
                 <button
                   type="button"
                   onClick={() => removeItem(idx)}
@@ -219,13 +285,15 @@ const AddStockOut = () => {
             )}
           </div>
         ))}
+
         <button
           type="button"
           onClick={addItem}
           className="bg-blue-500 text-white px-3 py-1 rounded mb-3">
           + Add Another Item
         </button>
-        {/* Batch-wide fields below */}
+
+        {/* Purpose, Dates, Reason */}
         <div>
           <label className="block text-sm font-medium mb-1">Purpose</label>
           <select
@@ -239,9 +307,10 @@ const AddStockOut = () => {
             <option value="Demo">Demo</option>
           </select>
         </div>
+
         <div>
           <label className="block text-sm font-medium mb-1">
-            📅 Stock Out Date
+            🗓 Stock Out Date
           </label>
           <input
             type="date"
@@ -251,6 +320,7 @@ const AddStockOut = () => {
             className="w-full border border-gray-300 rounded px-3 py-2"
           />
         </div>
+
         {purpose === "Demo" && (
           <div>
             <label className="block text-sm font-medium mb-1">
@@ -265,6 +335,7 @@ const AddStockOut = () => {
             />
           </div>
         )}
+
         <div>
           <label className="block text-sm font-medium mb-1">Reason</label>
           <input
@@ -277,6 +348,7 @@ const AddStockOut = () => {
             className="w-full border border-gray-300 rounded px-3 py-2"
           />
         </div>
+
         <div>
           <label className="block text-sm font-medium mb-1">Tender No.</label>
           <input
@@ -288,13 +360,14 @@ const AddStockOut = () => {
             className="w-full border border-gray-300 rounded px-3 py-2"
           />
         </div>
+
         <button
           type="submit"
           disabled={loading}
           className={`w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 rounded transition duration-200 mt-4 ${
-            loading && "opacity-60 cursor-not-allowed"
+            loading ? "opacity-60 cursor-not-allowed" : ""
           }`}>
-          {loading ? "Saving..." : "💾 Save Stock Out"}
+          {loading ? "Saving..." : "📀 Save Stock Out"}
         </button>
       </form>
     </div>

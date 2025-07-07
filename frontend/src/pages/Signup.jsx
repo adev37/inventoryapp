@@ -25,7 +25,7 @@ const Signup = () => {
 
     try {
       const res = await axios.post(
-        "https://brinventoryapp-eofk.vercel.app/api/api/auth/signup",
+        "http://localhost:8000/api/auth/signup",
         form
       );
       const data = res.data;

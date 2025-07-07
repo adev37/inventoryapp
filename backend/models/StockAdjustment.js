@@ -33,6 +33,11 @@ const stockAdjustmentSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    // ✅ FIXED: Rack-level location as ObjectId reference
+    location: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+    },
   },
   { timestamps: true }
 );
