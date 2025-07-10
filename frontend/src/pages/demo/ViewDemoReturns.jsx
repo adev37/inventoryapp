@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import API from "../../utils/axiosInstance";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import "react-toastify/dist/ReactToastify.css";
 
 const ViewDemoReturns = () => {
   const [entries, setEntries] = useState([]);
@@ -40,6 +41,17 @@ const ViewDemoReturns = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ Improved Date Formatter
+  const formatDate = (date) => {
+    try {
+      if (!date) return "-";
+      const d = new Date(date);
+      return isNaN(d.getTime()) ? "-" : d.toLocaleDateString();
+    } catch {
+      return "-";
     }
   };
 
@@ -85,9 +97,6 @@ const ViewDemoReturns = () => {
     setCurrentPage(1);
   };
 
-  const formatDate = (date) =>
-    date && date !== "-" ? new Date(date).toLocaleDateString() : "-";
-
   const exportToExcel = () => {
     const exportData = filteredEntries.map((entry, idx) => ({
       "Sl#": idx + 1,
@@ -116,6 +125,7 @@ const ViewDemoReturns = () => {
     saveAs(blob, "Demo_Returns_Report.xlsx");
   };
 
+  // Pagination logic
   const indexOfLast = currentPage * itemsPerPage;
   const indexOfFirst = indexOfLast - itemsPerPage;
   const currentItems = filteredEntries.slice(indexOfFirst, indexOfLast);

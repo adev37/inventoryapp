@@ -1,8 +1,7 @@
 import mongoose from "mongoose";
 import StockLedger from "../models/StockLedger.js";
 
-// 📦 GET: Pending Demo Returns (grouped without stockOutNo)
-// ✅ Show only actual unreturned OUT entries (no grouping now)
+// 📦 GET: Pending Demo Returns (unreturned OUT entries)
 export const getPendingDemoReturns = async (req, res) => {
   try {
     const raw = await StockLedger.find({
@@ -15,7 +14,6 @@ export const getPendingDemoReturns = async (req, res) => {
       .populate("location", "name")
       .sort({ date: -1 });
 
-    // Format and return each entry individually
     const formatted = raw.map((entry) => ({
       _id: entry._id,
       itemName: entry.item?.name || "-",
@@ -33,10 +31,10 @@ export const getPendingDemoReturns = async (req, res) => {
   }
 };
 
-// 🔄 POST: Mark OUT entries as returned and create matching IN entries
+// 🔁 POST: Return one OUT entry (and create matching IN entry)
 export const returnDemoBatch = async (req, res) => {
   try {
-    const id = req.params.id; // single StockLedger._id
+    const id = req.params.id; // OUT ledger entry ID
     const outEntry = await StockLedger.findById(id);
 
     if (!outEntry || outEntry.returned || outEntry.action !== "OUT") {
@@ -56,7 +54,7 @@ export const returnDemoBatch = async (req, res) => {
       purpose: "Demo Return",
       remarks: "Returned from demo",
       date: new Date(),
-      referenceId: outEntry._id,
+      referenceId: outEntry._id, // ✅ used in report merge
     });
 
     res.status(200).json({
@@ -69,7 +67,7 @@ export const returnDemoBatch = async (req, res) => {
   }
 };
 
-// 📄 GET: All demo return IN entries (for completed list)
+// 📄 GET: Only returned demo IN entries (history)
 export const getAllDemoReturns = async (req, res) => {
   try {
     const demoReturns = await StockLedger.find({
@@ -87,28 +85,53 @@ export const getAllDemoReturns = async (req, res) => {
   }
 };
 
-// 📊 GET: Full grouped return report
+// 📊 GET: Full Demo Return Report (Pending + Returned)
 export const getDemoReturnReport = async (req, res) => {
   try {
-    const entries = await StockLedger.find({
-      purpose: "Demo Return", // or use your custom filtering
-      action: "IN",
+    const outEntries = await StockLedger.find({
+      action: "OUT",
+      purpose: "Demo",
     })
-      .populate("item", "name modelNo") // ✅ Pull item name + model no
-      .sort({ date: -1 });
+      .populate("item", "name modelNo")
+      .populate("warehouse", "name")
+      .populate("location", "name");
 
-    const grouped = entries.map((entry) => ({
-      _id: entry._id,
-      itemName: entry.item?.name || "-",
-      modelNo: entry.item?.modelNo || "-",
-      quantity: Math.abs(entry.quantity),
-      returnedQty: Math.abs(entry.quantity),
-      returnDate: entry.date,
-      returnedOn: entry.date,
-      returned: true,
-    }));
+    const inEntries = await StockLedger.find({
+      action: "IN",
+      purpose: "Demo Return",
+    });
 
-    res.status(200).json(grouped);
+    // Match IN entries by referenceId → original OUT entry
+    const inMap = {};
+    for (const inEntry of inEntries) {
+      if (inEntry.referenceId) {
+        inMap[inEntry.referenceId.toString()] = inEntry;
+      }
+    }
+
+    const result = outEntries.map((out) => {
+      const returnedEntry = inMap[out._id.toString()];
+      return {
+        _id: out._id,
+        itemName: out.item?.name || "-",
+        modelNo: out.item?.modelNo || "-",
+        quantity: Math.abs(out.quantity),
+        returnedQty: returnedEntry ? Math.abs(returnedEntry.quantity) : 0,
+        returnDate: out.returnDate || null,
+        returnedOn: returnedEntry?.date || null,
+        returned: !!returnedEntry,
+      };
+    });
+
+    // Sort: latest return date or expected return date
+    result.sort((a, b) => {
+      return (
+        new Date(b.returnedOn || b.returnDate) -
+        new Date(a.returnedOn || a.returnDate)
+      );
+    });
+
+    res.status(200).json(result);
   } catch (error) {
     console.error("❌ Error in getDemoReturnReport:", error);
     res.status(500).json({ message: error.message });

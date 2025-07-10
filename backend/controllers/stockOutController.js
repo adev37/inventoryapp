@@ -1,7 +1,10 @@
 import StockOut from "../models/StockOut.js";
 import StockLedger from "../models/StockLedger.js";
 import mongoose from "mongoose";
+import { PDFDocument, StandardFonts } from "pdf-lib"; // required for challan
+// import { drawWrappedCell } from "../utils/pdfUtils.js"; // assume your PDF cell util is here
 
+// ✅ Create Stock Out Entries
 export const createStockOut = async (req, res) => {
   try {
     const { items, purpose, reason, tenderNo, date, returnDate } = req.body;
@@ -25,7 +28,7 @@ export const createStockOut = async (req, res) => {
         ? new mongoose.Types.ObjectId(location)
         : null;
 
-      // ✅ Create StockOut entry (no stockOutNo)
+      // ✅ Create StockOut document
       const stockOut = await StockOut.create({
         item,
         warehouse,
@@ -41,7 +44,7 @@ export const createStockOut = async (req, res) => {
 
       createdEntries.push(stockOut);
 
-      // ✅ Create StockLedger OUT entry (no stockOutNo)
+      // ✅ Create StockLedger OUT entry
       const ledger = await StockLedger.create({
         item,
         warehouse,
@@ -50,7 +53,7 @@ export const createStockOut = async (req, res) => {
         type: "Out",
         purpose,
         returned: false,
-        returnDate: null,
+        returnDate: purpose === "Demo" ? returnDate : null, // ✅ critical fix
         date,
         remarks: reason,
         location: locationId,
@@ -86,7 +89,7 @@ export const getAllStockOuts = async (req, res) => {
   }
 };
 
-// ✅ Get Pending Demo Returns
+// ✅ Get Pending Demo Returns (StockOut only)
 export const getPendingDemoReturns = async (req, res) => {
   try {
     const demoItems = await StockOut.find({
@@ -105,7 +108,7 @@ export const getPendingDemoReturns = async (req, res) => {
   }
 };
 
-// ✅ PDF Challan Generator
+// ✅ Generate PDF Challan for Stock Out (by stockOutNo)
 export const getStockOutChallan = async (req, res) => {
   try {
     const { stockOutNo } = req.params;

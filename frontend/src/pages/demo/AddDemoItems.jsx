@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import API from "../../utils/axiosInstance";
 import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const AddDemoItems = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [returning, setReturning] = useState("");
 
+  // Fetch all pending demo return items
   const fetchDemoItems = async () => {
     try {
       const res = await API.get("/demo-returns");
@@ -18,6 +20,7 @@ const AddDemoItems = () => {
     }
   };
 
+  // Mark a demo item as returned
   const markAsReturned = async (id) => {
     setReturning(id);
     try {
@@ -39,6 +42,7 @@ const AddDemoItems = () => {
   return (
     <div className="p-6">
       <h2 className="text-xl font-bold mb-4">📦 Pending Demo Returns</h2>
+
       <div className="overflow-x-auto shadow rounded bg-white">
         <table className="w-full table-auto border border-gray-300">
           <thead className="bg-gray-100">
@@ -53,6 +57,7 @@ const AddDemoItems = () => {
               <th className="p-2 border">Action</th>
             </tr>
           </thead>
+
           <tbody>
             {loading ? (
               <tr>
