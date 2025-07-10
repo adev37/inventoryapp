@@ -142,14 +142,14 @@ const Sidebar = () => {
               <ArrowUpCircle className="w-4 h-4" />
               Stock Out
             </NavLink>
-            <NavLink
+            {/* <NavLink
               to="/view-stock-out"
               className={({ isActive }) =>
                 `${linkStyle} ${isActive ? activeStyle : ""}`
               }>
               <Eye className="w-4 h-4" />
               View Stock Out
-            </NavLink>
+            </NavLink> */}
           </SidebarDropdown>
 
           {/* Transfers */}
