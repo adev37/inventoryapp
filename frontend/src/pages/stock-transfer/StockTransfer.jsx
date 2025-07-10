@@ -7,100 +7,92 @@ const StockTransfer = () => {
   const [items, setItems] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [currentStock, setCurrentStock] = useState([]);
   const [availableQty, setAvailableQty] = useState(null);
-  const [prevRacks, setPrevRacks] = useState({});
-  const [allStock, setAllStock] = useState([]);
 
   const [form, setForm] = useState({
     item: "",
     fromWarehouse: "",
-    fromLocation: "",
     toWarehouse: "",
+    fromLocation: "",
     toLocation: "",
     quantity: "",
-    note: "",
+    reason: "",
   });
 
+  const [prevRackMemory, setPrevRackMemory] = useState({}); // warehouseId => locationId
+
   useEffect(() => {
-    fetchCurrentStock();
-    fetchWarehouses();
-    fetchLocations();
+    const fetchInitial = async () => {
+      try {
+        const [itemRes, warehouseRes, locationRes, stockRes] =
+          await Promise.all([
+            API.get("/items"),
+            API.get("/warehouses"),
+            API.get("/locations"),
+            API.get("/current-stock"),
+          ]);
+        setItems(itemRes.data);
+        setWarehouses(warehouseRes.data);
+        setLocations(locationRes.data);
+        setCurrentStock(stockRes.data);
+      } catch (err) {
+        toast.error("❌ Failed to load data");
+      }
+    };
+    fetchInitial();
   }, []);
 
-  const fetchCurrentStock = async () => {
-    try {
-      const res = await API.get("/current-stock");
-      setAllStock(res.data);
-      const uniqueItems = Array.from(
-        new Map(
-          res.data.map((entry) => [
-            entry.itemId,
-            { _id: entry.itemId, name: entry.item, modelNo: entry.modelNo },
-          ])
-        ).values()
-      );
-      setItems(uniqueItems);
-    } catch {
-      toast.error("❌ Failed to fetch current stock.");
-    }
-  };
-
-  const fetchWarehouses = async () => {
-    try {
-      const res = await API.get("/warehouses");
-      setWarehouses(res.data);
-    } catch {
-      toast.error("❌ Failed to fetch warehouses.");
-    }
-  };
-
-  const fetchLocations = async () => {
-    try {
-      const res = await API.get("/locations");
-      setLocations(res.data);
-    } catch {
-      toast.error("❌ Failed to fetch locations.");
-    }
-  };
-
-  // 🔄 Auto update availableQty when relevant fields change
   useEffect(() => {
-    if (form.item && form.fromWarehouse && form.fromLocation !== undefined) {
-      const match = allStock.find(
-        (s) =>
-          String(s.itemId) === String(form.item) &&
-          String(s.warehouseId) === String(form.fromWarehouse) &&
-          String(s.locationId || "") === String(form.fromLocation || "")
-      );
-      setAvailableQty(match?.quantity || 0);
-    } else {
-      setAvailableQty(null);
-    }
-  }, [form.item, form.fromWarehouse, form.fromLocation, allStock]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-
-    if (name === "fromWarehouse") {
-      setPrevRacks((prev) => ({
-        ...prev,
-        [form.fromWarehouse]: form.fromLocation,
-      }));
-      const restored = prevRacks[value] || "";
-      setForm((prev) => ({
-        ...prev,
-        fromWarehouse: value,
-        fromLocation: restored,
-      }));
+    const { item, fromWarehouse, fromLocation } = form;
+    if (!item || !fromWarehouse) {
       setAvailableQty(null);
       return;
     }
 
-    if (name === "fromLocation") {
-      setAvailableQty(null);
+    const matched = currentStock.filter((e) => {
+      const matchItem = e.itemId === item;
+      const matchWH = e.warehouseId === fromWarehouse;
+      const matchLoc = fromLocation
+        ? e.location?.toLowerCase() ===
+          locations.find((l) => l._id === fromLocation)?.name?.toLowerCase()
+        : true;
+      return matchItem && matchWH && matchLoc;
+    });
+
+    const total = matched.reduce((sum, row) => sum + row.quantity, 0);
+    setAvailableQty(total);
+  }, [
+    form.item,
+    form.fromWarehouse,
+    form.fromLocation,
+    currentStock,
+    locations,
+  ]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    // Handle memory of previous rack for each warehouse
+    if (name === "fromWarehouse") {
+      setPrevRackMemory((prev) => ({
+        ...prev,
+        [form.fromWarehouse]: form.fromLocation,
+      }));
+
+      const restoredRack = prevRackMemory[value] || "";
+      setForm((prev) => ({
+        ...prev,
+        fromWarehouse: value,
+        fromLocation: restoredRack,
+      }));
+      return;
     }
 
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -108,67 +100,57 @@ const StockTransfer = () => {
     const {
       item,
       fromWarehouse,
-      fromLocation,
       toWarehouse,
+      fromLocation,
       toLocation,
       quantity,
+      reason,
     } = form;
 
-    if (!item || !fromWarehouse || !fromLocation || !toWarehouse || !quantity) {
-      toast.error("❗ Please fill all required fields.");
+    if (!item || !fromWarehouse || !toWarehouse || !quantity || !reason) {
+      toast.error("⚠️ Please fill all required fields.");
       return;
     }
 
-    if (
-      String(fromWarehouse) === String(toWarehouse) &&
-      String(fromLocation || "") === String(toLocation || "")
-    ) {
-      toast.error("❌ From and To locations must differ.");
-      return;
-    }
-
-    if (availableQty === null) {
-      toast.error("❌ Please select source rack/warehouse.");
+    if (fromWarehouse === toWarehouse) {
+      toast.error("⚠️ Source and destination warehouse cannot be the same.");
       return;
     }
 
     if (parseInt(quantity) > availableQty) {
-      toast.error(`❌ Only ${availableQty} units available.`);
+      toast.error("❌ Quantity exceeds available stock.");
       return;
     }
 
     try {
-      await API.post("/stock-transfers", {
-        ...form,
+      const res = await API.post("/stock-transfers", {
+        item,
+        fromWarehouse,
+        toWarehouse,
+        fromLocation,
+        toLocation,
         quantity: parseInt(quantity),
+        reason,
+        date: new Date(),
       });
 
-      toast.success("✅ Stock transfer successful");
+      toast.success(res.data.message);
       setForm({
         item: "",
         fromWarehouse: "",
-        fromLocation: "",
         toWarehouse: "",
+        fromLocation: "",
         toLocation: "",
         quantity: "",
-        note: "",
+        reason: "",
       });
       setAvailableQty(null);
-      fetchCurrentStock();
     } catch (err) {
-      toast.error(err.response?.data?.message || "❌ Transfer failed");
+      toast.error(err.response?.data?.message || "Transfer failed.");
     }
   };
 
-  const getFromLocations = (warehouseId) => {
-    return locations.filter((loc) => {
-      const wId =
-        typeof loc.warehouse === "object" ? loc.warehouse._id : loc.warehouse;
-      return String(wId) === String(warehouseId);
-    });
-  };
-
-  const getToLocations = () => {
+  const getUniqueLocations = () => {
     const seen = new Set();
     return locations.filter((loc) => {
       if (seen.has(loc.name)) return false;
@@ -179,7 +161,7 @@ const StockTransfer = () => {
 
   return (
     <div className="p-6">
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer position="top-right" />
       <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
         🔁 Stock Transfer
       </h2>
@@ -188,57 +170,66 @@ const StockTransfer = () => {
         <form
           onSubmit={handleSubmit}
           className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* ITEM */}
+          {/* Item */}
           <div>
-            <label className="block mb-1 text-sm font-medium">
-              Select Item
-            </label>
+            <label className="block mb-1 font-medium">Item</label>
             <select
               name="item"
               value={form.item}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              required>
+              className="w-full border px-3 py-2 rounded">
               <option value="">Select Item</option>
-              {items.map((item) => (
-                <option key={item._id} value={item._id}>
-                  {item.name} ({item.modelNo})
+              {items.map((i) => (
+                <option key={i._id} value={i._id}>
+                  {i.name} ({i.modelNo})
                 </option>
               ))}
             </select>
           </div>
 
-          {/* FROM WAREHOUSE */}
+          {/* Qty */}
           <div>
-            <label className="block mb-1 text-sm font-medium">
-              From Warehouse
-            </label>
+            <label className="block mb-1 font-medium">Quantity</label>
+            <input
+              type="number"
+              name="quantity"
+              min="1"
+              value={form.quantity}
+              onChange={handleChange}
+              placeholder={`Qty (Available: ${availableQty ?? "-"})`}
+              className="w-full border px-3 py-2 rounded"
+            />
+          </div>
+
+          {/* From WH */}
+          <div>
+            <label className="block mb-1 font-medium">From Warehouse</label>
             <select
               name="fromWarehouse"
               value={form.fromWarehouse}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              required>
-              <option value="">From Warehouse</option>
-              {warehouses.map((wh) => (
-                <option key={wh._id} value={wh._id}>
-                  {wh.name}
+              className="w-full border px-3 py-2 rounded">
+              <option value="">Select Warehouse</option>
+              {warehouses.map((w) => (
+                <option key={w._id} value={w._id}>
+                  {w.name}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* FROM RACK */}
+          {/* From Location */}
           <div>
-            <label className="block mb-1 text-sm font-medium">From Rack</label>
+            <label className="block mb-1 font-medium">
+              From Rack / Location
+            </label>
             <select
               name="fromLocation"
               value={form.fromLocation}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              required>
-              <option value="">Select Rack</option>
-              {getFromLocations(form.fromWarehouse).map((loc) => (
+              className="w-full border px-3 py-2 rounded">
+              <option value="">— Optional —</option>
+              {getUniqueLocations().map((loc) => (
                 <option key={loc._id} value={loc._id}>
                   {loc.name}
                 </option>
@@ -246,36 +237,33 @@ const StockTransfer = () => {
             </select>
           </div>
 
-          {/* TO WAREHOUSE */}
+          {/* To WH */}
           <div>
-            <label className="block mb-1 text-sm font-medium">
-              To Warehouse
-            </label>
+            <label className="block mb-1 font-medium">To Warehouse</label>
             <select
               name="toWarehouse"
               value={form.toWarehouse}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              required>
-              <option value="">To Warehouse</option>
-              {warehouses.map((wh) => (
-                <option key={wh._id} value={wh._id}>
-                  {wh.name}
+              className="w-full border px-3 py-2 rounded">
+              <option value="">Select Warehouse</option>
+              {warehouses.map((w) => (
+                <option key={w._id} value={w._id}>
+                  {w.name}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* TO RACK */}
+          {/* To Location */}
           <div>
-            <label className="block mb-1 text-sm font-medium">To Rack</label>
+            <label className="block mb-1 font-medium">To Rack / Location</label>
             <select
               name="toLocation"
               value={form.toLocation}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded px-3 py-2">
-              <option value="">Select Rack</option>
-              {getToLocations().map((loc) => (
+              className="w-full border px-3 py-2 rounded">
+              <option value="">— Optional —</option>
+              {getUniqueLocations().map((loc) => (
                 <option key={loc._id} value={loc._id}>
                   {loc.name}
                 </option>
@@ -283,42 +271,24 @@ const StockTransfer = () => {
             </select>
           </div>
 
-          {/* QUANTITY */}
-          <div>
-            <label className="block mb-1 text-sm font-medium">
-              Quantity (Available: {availableQty !== null ? availableQty : "-"})
-            </label>
-            <input
-              type="number"
-              name="quantity"
-              value={form.quantity}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              placeholder="Enter quantity"
-              required
-              min="1"
-            />
-          </div>
-
-          {/* REMARKS */}
+          {/* Reason */}
           <div className="md:col-span-2">
-            <label className="block mb-1 text-sm font-medium">Remarks</label>
+            <label className="block mb-1 font-medium">Reason</label>
             <input
               type="text"
-              name="note"
-              value={form.note}
+              name="reason"
+              value={form.reason}
               onChange={handleChange}
-              placeholder="Any remarks or notes"
-              className="w-full border border-gray-300 rounded px-3 py-2"
+              className="w-full border px-3 py-2 rounded"
+              placeholder="Reason for transfer"
             />
           </div>
 
-          {/* SUBMIT */}
-          <div className="md:col-span-2 mt-2">
+          <div className="md:col-span-2">
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded">
-              🔁 Transfer Stock
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded mt-2">
+              Transfer Stock
             </button>
           </div>
         </form>
