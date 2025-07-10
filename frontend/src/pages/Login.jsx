@@ -20,7 +20,7 @@ const Login = ({ setIsAuthenticated }) => {
 
     try {
       const res = await axios.post(
-        "http://localhost:8000/api/auth/login",
+        "https://inventoryapp-api.vercel.app/api/auth/login",
         form
       );
       const data = res.data;
