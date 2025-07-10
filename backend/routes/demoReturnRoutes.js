@@ -1,7 +1,7 @@
 import express from "express";
 import {
   getPendingDemoReturns,
-  returnDemoBatch, // Make sure this is the batch return function!
+  returnDemoBatch, // ✅ Used with fallback _id
   getAllDemoReturns,
   getDemoReturnReport,
 } from "../controllers/demoController.js";
@@ -9,18 +9,20 @@ import verifyToken from "../middleware/verifyToken.js";
 
 const router = express.Router();
 
+// 🔐 Apply token verification middleware to all routes
 router.use(verifyToken);
 
-// 📦 GET: All pending demo returns (grouped by stockOutNo)
+// 📦 GET: All pending demo returns (grouped fallback if stockOutNo is missing)
 router.get("/", getPendingDemoReturns);
 
-// 🔄 POST: Mark entire batch as returned (by Stock Out No)
-router.post("/return-batch/:stockOutNo", returnDemoBatch);
+// 🔄 POST: Mark return using fallback _id (since stockOutNo was removed)
+// router.post("/return-batch/by-id/:fallbackId", returnDemoBatch); // ✅ Updated route
+router.post("/return/:id", returnDemoBatch); // return single item using _id
 
-// ✅ GET: All completed demo returns (all IN)
+// ✅ GET: All completed demo returns (IN entries)
 router.get("/completed", getAllDemoReturns);
 
-// 📊 GET: Full demo return report (shows returned status per batch)
+// 📊 GET: Full report (OUTs and returns status)
 router.get("/report", getDemoReturnReport);
 
 export default router;

@@ -46,7 +46,6 @@ const AddStockIn = () => {
     const updatedSearch = [...itemSearch];
     updatedSearch[index] = value;
     setItemSearch(updatedSearch);
-
     setActiveSuggestionIdx(index);
 
     if (value.length > 0) {
@@ -89,6 +88,14 @@ const AddStockIn = () => {
     }
   };
 
+  const getLocationsForWarehouse = (warehouseId) => {
+    return allLocations.filter((l) => {
+      const locWarehouse =
+        typeof l.warehouse === "object" ? l.warehouse._id : l.warehouse;
+      return locWarehouse === warehouseId;
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -122,137 +129,122 @@ const AddStockIn = () => {
     setLoading(false);
   };
 
-  const getLocationsForWarehouse = (warehouseId) => {
-    return allLocations.filter((l) => {
-      const locWarehouse =
-        typeof l.warehouse === "object" ? l.warehouse._id : l.warehouse;
-      return locWarehouse === warehouseId;
-    });
-  };
-
   return (
     <div className="p-6">
       <ToastContainer position="top-right" autoClose={3000} />
       <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
         📥 Stock In
       </h2>
-      <div className="bg-white shadow-md p-6 rounded-lg max-w-4xl">
-        <form onSubmit={handleSubmit} className="space-y-2">
-          {items.map((itm, idx) => (
-            <div
-              key={idx}
-              className="grid grid-cols-1 md:grid-cols-4 gap-4 border-b pb-2 mb-2 relative">
-              {/* Item Autocomplete */}
-              <div className="relative">
-                <label className="block mb-1 text-sm font-medium">
-                  Search Item
-                </label>
-                <input
-                  type="text"
-                  value={itemSearch[idx] || ""}
-                  onChange={(e) => handleItemSearch(idx, e.target.value)}
-                  placeholder="Type to search item"
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  required
-                  autoComplete="off"
-                />
-                {itemSearch[idx] &&
-                  activeSuggestionIdx === idx &&
-                  itemSuggestions.length > 0 && (
-                    <ul className="absolute bg-white border border-gray-200 rounded shadow z-10 w-full max-h-44 overflow-auto mt-1">
-                      {itemSuggestions.map((s) => (
-                        <li
-                          key={s._id}
-                          className="px-3 py-2 cursor-pointer hover:bg-blue-100"
-                          onClick={() => handleSelectSuggestion(idx, s)}>
-                          {s.name} ({s.modelNo})
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-              </div>
-
-              {/* Warehouse Select */}
-              <div>
-                <label className="block mb-1 text-sm font-medium">
-                  Warehouse
-                </label>
-                <select
-                  name="warehouse"
-                  value={itm.warehouse}
-                  onChange={(e) => handleItemChange(idx, e)}
-                  required
-                  className="w-full border border-gray-300 rounded px-3 py-2">
-                  <option value="">Select Warehouse</option>
-                  {allWarehouses.map((w) => (
-                    <option key={w._id} value={w._id}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Rack Location */}
-              <div>
-                <label className="block mb-1 text-sm font-medium">
-                  Rack Location
-                </label>
-                <select
-                  name="location"
-                  value={itm.location}
-                  onChange={(e) => handleItemChange(idx, e)}
-                  className="w-full border border-gray-300 rounded px-3 py-2">
-                  <option value="">Select Rack</option>
-                  {getLocationsForWarehouse(itm.warehouse).map((l) => (
-                    <option key={l._id} value={l._id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Quantity */}
-              <div>
-                <label className="block mb-1 text-sm font-medium">
-                  Quantity
-                </label>
-                <input
-                  name="quantity"
-                  type="number"
-                  value={itm.quantity}
-                  onChange={(e) => handleItemChange(idx, e)}
-                  placeholder="Enter quantity"
-                  required
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  min={1}
-                />
-              </div>
-
-              {/* Remove Button */}
-              {items.length > 1 && (
-                <div className="md:col-span-4 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => removeItem(idx)}
-                    className="text-red-500 text-sm">
-                    Remove Item
-                  </button>
-                </div>
-              )}
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white shadow-md p-6 rounded-lg">
+        {items.map((itm, idx) => (
+          <div
+            key={idx}
+            className="grid md:grid-cols-4 gap-4 border-b pb-4 mb-4 relative">
+            {/* Search Item */}
+            <div className="relative">
+              <label className="block mb-1">Search Item</label>
+              <input
+                type="text"
+                value={itemSearch[idx] || ""}
+                onChange={(e) => handleItemSearch(idx, e.target.value)}
+                placeholder="Type to search item"
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                required
+                autoComplete="off"
+              />
+              {itemSearch[idx] &&
+                activeSuggestionIdx === idx &&
+                itemSuggestions.length > 0 && (
+                  <ul className="absolute z-10 bg-white border rounded shadow w-full max-h-48 overflow-auto">
+                    {itemSuggestions.map((s) => (
+                      <li
+                        key={s._id}
+                        className="px-3 py-2 cursor-pointer hover:bg-blue-100"
+                        onClick={() => handleSelectSuggestion(idx, s)}>
+                        {s.name} ({s.modelNo})
+                      </li>
+                    ))}
+                  </ul>
+                )}
             </div>
-          ))}
 
-          {/* Add Button */}
-          <button
-            type="button"
-            onClick={addItem}
-            className="bg-blue-500 text-white px-3 py-1 rounded mb-3">
-            + Add Another Item
-          </button>
+            {/* Warehouse */}
+            <div>
+              <label className="block mb-1">Warehouse</label>
+              <select
+                name="warehouse"
+                value={itm.warehouse}
+                onChange={(e) => handleItemChange(idx, e)}
+                required
+                className="w-full border border-gray-300 rounded px-3 py-2">
+                <option value="">Select Warehouse</option>
+                {allWarehouses.map((w) => (
+                  <option key={w._id} value={w._id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Date and Remarks */}
+            {/* Rack */}
+            <div>
+              <label className="block mb-1">Rack Location</label>
+              <select
+                name="location"
+                value={itm.location}
+                onChange={(e) => handleItemChange(idx, e)}
+                className="w-full border border-gray-300 rounded px-3 py-2">
+                <option value="">Select Rack</option>
+                {getLocationsForWarehouse(itm.warehouse).map((l) => (
+                  <option key={l._id} value={l._id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quantity */}
+            <div>
+              <label className="block mb-1">Quantity</label>
+              <input
+                name="quantity"
+                type="number"
+                value={itm.quantity}
+                onChange={(e) => handleItemChange(idx, e)}
+                placeholder="Enter quantity"
+                required
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                min={1}
+              />
+            </div>
+
+            {items.length > 1 && (
+              <div className="col-span-4 text-right">
+                <button
+                  type="button"
+                  onClick={() => removeItem(idx)}
+                  className="text-red-500 text-sm">
+                  Remove Item
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Add Another Item */}
+        <button
+          type="button"
+          onClick={addItem}
+          className="bg-blue-500 text-white px-3 py-1 rounded mb-4">
+          + Add Another Item
+        </button>
+
+        {/* Date and Remarks */}
+        <div className="grid md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block mb-1 text-sm font-medium">Date</label>
+            <label className="block mb-1">Date</label>
             <input
               name="date"
               type="date"
@@ -262,8 +254,9 @@ const AddStockIn = () => {
               className="w-full border border-gray-300 rounded px-3 py-2"
             />
           </div>
+
           <div>
-            <label className="block mb-1 text-sm font-medium">Remarks</label>
+            <label className="block mb-1">Remarks</label>
             <input
               name="remarks"
               value={remarks}
@@ -272,17 +265,17 @@ const AddStockIn = () => {
               className="w-full border border-gray-300 rounded px-3 py-2"
             />
           </div>
+        </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-semibold transition duration-200 mt-2 ${
-              loading && "opacity-60 cursor-not-allowed"
-            }`}>
-            {loading ? "Saving..." : "💾 Save Stock In"}
-          </button>
-        </form>
-      </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className={`w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-semibold transition duration-200 ${
+            loading && "opacity-60 cursor-not-allowed"
+          }`}>
+          {loading ? "Saving..." : "💾 Save Stock In"}
+        </button>
+      </form>
     </div>
   );
 };

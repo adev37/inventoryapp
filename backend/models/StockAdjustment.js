@@ -24,6 +24,7 @@ const stockAdjustmentSchema = new mongoose.Schema(
     reason: {
       type: String,
       required: true,
+      trim: true,
     },
     purpose: {
       type: String,
@@ -33,10 +34,11 @@ const stockAdjustmentSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    // ✅ FIXED: Rack-level location as ObjectId reference
+    // ✅ Optional rack-level location
     location: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Location",
+      default: null,
     },
   },
   { timestamps: true }

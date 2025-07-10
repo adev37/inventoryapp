@@ -25,7 +25,6 @@ const ViewDemoReturns = () => {
     setLoading(true);
     try {
       const res = await API.get("/demo-returns/report");
-      // Sort latest first by returnDate, fallback to createdAt if needed
       const sorted = [...res.data].sort((a, b) => {
         return (
           new Date(b.returnDate || b.createdAt) -
@@ -44,30 +43,30 @@ const ViewDemoReturns = () => {
     }
   };
 
-  // Filtering logic
+  // Filtering
   useEffect(() => {
     let filtered = [...entries];
 
-    // Status
     if (statusFilter) {
       const isReturned = statusFilter === "Returned";
       filtered = filtered.filter((e) => e.returned === isReturned);
     }
 
-    // Search by Stock No.
     if (searchText.trim()) {
       const lower = searchText.toLowerCase();
-      filtered = filtered.filter((e) =>
-        (e.stockOutNo || "").toLowerCase().includes(lower)
+      filtered = filtered.filter(
+        (e) =>
+          (e.itemName || "").toLowerCase().includes(lower) ||
+          (e.modelNo || "").toLowerCase().includes(lower)
       );
     }
 
-    // Date range on Expected Return
     if (dateFrom) {
       filtered = filtered.filter(
         (e) => e.returnDate && new Date(e.returnDate) >= new Date(dateFrom)
       );
     }
+
     if (dateTo) {
       filtered = filtered.filter(
         (e) => e.returnDate && new Date(e.returnDate) <= new Date(dateTo)
@@ -92,7 +91,8 @@ const ViewDemoReturns = () => {
   const exportToExcel = () => {
     const exportData = filteredEntries.map((entry, idx) => ({
       "Sl#": idx + 1,
-      "Stock No.": entry.stockOutNo || "-",
+      Item: entry.itemName || "-",
+      "Model No.": entry.modelNo || "-",
       "Total Qty": entry.quantity,
       "Returned Qty": entry.returnedQty,
       "Expected Return": formatDate(entry.returnDate),
@@ -132,7 +132,7 @@ const ViewDemoReturns = () => {
       <div className="flex flex-wrap gap-4 mb-4 items-center">
         <input
           type="text"
-          placeholder="🔎 Search Stock No."
+          placeholder="🔎 Search Item / Model"
           className="border px-3 py-2 rounded w-52"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
@@ -183,7 +183,8 @@ const ViewDemoReturns = () => {
             <thead className="bg-gray-100">
               <tr>
                 <th className="p-2 border">Sl#</th>
-                <th className="p-2 border">Stock No.</th>
+                <th className="p-2 border">Item</th>
+                <th className="p-2 border">Model No.</th>
                 <th className="p-2 border">Total Qty</th>
                 <th className="p-2 border">Returned Qty</th>
                 <th className="p-2 border">Expected Return</th>
@@ -199,9 +200,8 @@ const ViewDemoReturns = () => {
                   <td className="p-2 border text-center">
                     {indexOfFirst + idx + 1}
                   </td>
-                  <td className="p-2 border text-center">
-                    {entry.stockOutNo || "-"}
-                  </td>
+                  <td className="p-2 border text-center">{entry.itemName}</td>
+                  <td className="p-2 border text-center">{entry.modelNo}</td>
                   <td className="p-2 border text-center">{entry.quantity}</td>
                   <td className="p-2 border text-center">
                     {entry.returnedQty}

@@ -18,8 +18,13 @@ const locationSchema = new mongoose.Schema(
       trim: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
+
+// 🚫 Prevent duplicate rack name within the same warehouse
+locationSchema.index({ name: 1, warehouse: 1 }, { unique: true });
 
 export default mongoose.models.Location ||
   mongoose.model("Location", locationSchema);

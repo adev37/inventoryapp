@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import StockAdjustment from "../models/StockAdjustment.js";
 import StockLedger from "../models/StockLedger.js";
 
@@ -7,6 +8,11 @@ export const createStockAdjustment = async (req, res) => {
     const { item, warehouse, quantity, action, reason, date, location } =
       req.body;
 
+    // ✅ Validate location (convert to ObjectId if valid, else null)
+    const locationId = mongoose.Types.ObjectId.isValid(location)
+      ? new mongoose.Types.ObjectId(location)
+      : null;
+
     // ✅ 1. Create the stock adjustment entry
     const adjustment = await StockAdjustment.create({
       item,
@@ -15,20 +21,20 @@ export const createStockAdjustment = async (req, res) => {
       action,
       reason,
       date,
-      location: location?.trim() || "", // optional
+      location: locationId,
     });
 
-    // ✅ 2. Add to Stock Ledger with forced "Adjusted" purpose
+    // ✅ 2. Add to Stock Ledger
     await StockLedger.create({
       item,
       warehouse,
+      location: locationId,
       quantity: action === "IN" ? Math.abs(quantity) : -Math.abs(quantity),
       action,
       type: "Adjustment",
-      purpose: "Adjusted", // fixed purpose
+      purpose: "Adjusted",
       remarks: reason,
       date,
-      location: location?.trim() || "", // ✅ now included in ledger for tracking
     });
 
     res.status(201).json({
@@ -41,12 +47,13 @@ export const createStockAdjustment = async (req, res) => {
   }
 };
 
-// 📄 GET: All stock adjustments
+// 📄 GET: All stock adjustments (rack-aware)
 export const getAllStockAdjustments = async (req, res) => {
   try {
     const adjustments = await StockAdjustment.find()
       .populate("item", "name modelNo")
       .populate("warehouse", "name")
+      .populate("location", "name") // ✅ Show rack name in frontend
       .sort({ date: -1 });
 
     res.json(adjustments);

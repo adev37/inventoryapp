@@ -5,9 +5,10 @@ import "react-toastify/dist/ReactToastify.css";
 
 const LocationList = () => {
   const [locations, setLocations] = useState([]);
+  const [groupedLocations, setGroupedLocations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: "", description: "" });
+  const [editingName, setEditingName] = useState(null);
+  const [editData, setEditData] = useState({ newName: "", description: "" });
 
   useEffect(() => {
     fetchLocations();
@@ -17,6 +18,7 @@ const LocationList = () => {
     try {
       const res = await API.get("/locations");
       setLocations(res.data);
+      groupByRackName(res.data);
     } catch (err) {
       toast.error("❌ Failed to fetch locations.");
       console.error("Fetch error:", err);
@@ -25,44 +27,71 @@ const LocationList = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    const confirm = window.confirm(
-      "Are you sure you want to delete this location?"
-    );
+  const groupByRackName = (data) => {
+    const map = new Map();
+
+    data.forEach((loc) => {
+      const key = loc.name.trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          _id: loc._id,
+          name: loc.name,
+          description: loc.description,
+          warehouses: [loc.warehouse?.name || "—"],
+        });
+      } else {
+        map.get(key).warehouses.push(loc.warehouse?.name || "—");
+      }
+    });
+
+    setGroupedLocations(Array.from(map.values()));
+  };
+
+  const handleDelete = async (name) => {
+    const confirm = window.confirm(`Delete ALL entries for "${name}" rack?`);
     if (!confirm) return;
 
     try {
-      await API.delete(`/locations/${id}`);
-      toast.success("🗑️ Location deleted successfully.");
-      setLocations((prev) => prev.filter((loc) => loc._id !== id));
+      const res = await API.get("/locations");
+      const all = res.data;
+      const toDelete = all.filter(
+        (loc) => loc.name.trim().toLowerCase() === name.trim().toLowerCase()
+      );
+
+      for (let loc of toDelete) {
+        await API.delete(`/locations/${loc._id}`);
+      }
+
+      toast.success(`🗑️ Deleted ${toDelete.length} entries of "${name}" rack`);
+      fetchLocations();
     } catch (err) {
-      toast.error("❌ Failed to delete location.");
+      toast.error("❌ Failed to delete rack group.");
       console.error("Delete error:", err);
     }
   };
 
   const handleEditClick = (loc) => {
-    setEditingId(loc._id);
-    setEditData({ name: loc.name, description: loc.description || "" });
+    setEditingName(loc.name);
+    setEditData({ newName: loc.name, description: loc.description || "" });
   };
 
   const handleChange = (e) => {
     setEditData({ ...editData, [e.target.name]: e.target.value });
   };
 
-  const handleSave = async () => {
+  const handleUpdate = async () => {
     try {
-      await API.put(`/locations/${editingId}`, editData);
-      toast.success("✅ Location updated successfully.");
-      setEditingId(null);
+      await API.put(`/locations/by-name/${editingName}`, editData);
+      toast.success("✅ Rack group updated successfully.");
+      setEditingName(null);
       fetchLocations();
     } catch (err) {
-      toast.error("❌ Failed to update location.");
+      toast.error("❌ Failed to update rack group.");
       console.error("Update error:", err);
     }
   };
 
-  const handleCancel = () => setEditingId(null);
+  const handleCancel = () => setEditingName(null);
 
   return (
     <div className="p-6">
@@ -73,7 +102,7 @@ const LocationList = () => {
 
       {loading ? (
         <p className="text-blue-500">Loading locations...</p>
-      ) : locations.length === 0 ? (
+      ) : groupedLocations.length === 0 ? (
         <p className="text-gray-500">No locations found.</p>
       ) : (
         <div className="overflow-x-auto">
@@ -82,31 +111,28 @@ const LocationList = () => {
               <tr>
                 <th className="p-2 border">#</th>
                 <th className="p-2 border">Location Name</th>
-                <th className="p-2 border">Warehouse</th>
+                <th className="p-2 border">Warehouses</th>
                 <th className="p-2 border">Description</th>
                 <th className="p-2 border">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {locations.map((loc, idx) => (
-                <tr
-                  key={loc._id}
-                  className="border-t hover:bg-gray-50"
-                  onDoubleClick={() => handleEditClick(loc)}>
+              {groupedLocations.map((loc, idx) => (
+                <tr key={loc.name} className="border-t hover:bg-gray-50">
                   <td className="p-2 border">{idx + 1}</td>
 
-                  {editingId === loc._id ? (
+                  {editingName === loc.name ? (
                     <>
                       <td className="p-2 border">
                         <input
-                          name="name"
-                          value={editData.name}
+                          name="newName"
+                          value={editData.newName}
                           onChange={handleChange}
                           className="w-full border rounded px-2 py-1"
                         />
                       </td>
-                      <td className="p-2 border italic text-gray-500">
-                        {loc.warehouse?.name || "—"}
+                      <td className="p-2 border text-sm text-gray-700">
+                        {loc.warehouses.join(", ")}
                       </td>
                       <td className="p-2 border">
                         <input
@@ -118,9 +144,9 @@ const LocationList = () => {
                       </td>
                       <td className="p-2 border flex gap-2">
                         <button
-                          onClick={handleSave}
+                          onClick={handleUpdate}
                           className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded">
-                          💾 Save
+                          💾 Save All
                         </button>
                         <button
                           onClick={handleCancel}
@@ -132,20 +158,20 @@ const LocationList = () => {
                   ) : (
                     <>
                       <td className="p-2 border">{loc.name}</td>
-                      <td className="p-2 border">
-                        {loc.warehouse?.name || "—"}
+                      <td className="p-2 border text-sm text-gray-700">
+                        {loc.warehouses.join(", ")}
                       </td>
                       <td className="p-2 border">{loc.description || "—"}</td>
                       <td className="p-2 border flex gap-2">
                         <button
                           onClick={() => handleEditClick(loc)}
                           className="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded">
-                          ✏️ Edit
+                          ✏️ Edit All
                         </button>
                         <button
-                          onClick={() => handleDelete(loc._id)}
+                          onClick={() => handleDelete(loc.name)}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">
-                          🗑 Delete
+                          🗑 Delete All
                         </button>
                       </td>
                     </>

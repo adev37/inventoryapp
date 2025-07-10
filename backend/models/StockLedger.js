@@ -18,12 +18,12 @@ const stockLedgerSchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: ["IN", "OUT"], // IN = received, OUT = issued
+      enum: ["IN", "OUT"], // IN = added to stock, OUT = deducted
       required: true,
     },
     type: {
       type: String,
-      default: "Manual", // e.g., Manual, In, Out, Transfer In, Transfer Out
+      default: "Manual", // Manual, In, Out, Transfer In, Transfer Out
     },
     purpose: {
       type: String,
@@ -31,32 +31,24 @@ const stockLedgerSchema = new mongoose.Schema(
     },
     remarks: {
       type: String,
+      default: "",
+      trim: true,
     },
     date: {
       type: Date,
       default: Date.now,
     },
     returnDate: {
-      type: Date, // Only for Demo purposes
+      type: Date, // For demo returns
     },
     returned: {
-      type: Boolean, // Only used for Demo returns
+      type: Boolean, // For tracking pending demo returns
     },
     referenceId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "StockLedger", // Links to another ledger entry (e.g., return)
+      ref: "StockLedger", // Used in return references
     },
-    stockInNo: {
-      type: String,
-      default: null,
-      index: true,
-    },
-    stockOutNo: {
-      type: String,
-      default: null,
-      index: true,
-    },
-    // ✅ NEW: Rack-level location support
+    // ✅ Location reference (rack-aware support)
     location: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Location",
@@ -66,6 +58,6 @@ const stockLedgerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ✅ Prevent OverwriteModelError during development with hot reload
+// ✅ Prevent model overwrite error in dev
 export default mongoose.models.StockLedger ||
   mongoose.model("StockLedger", stockLedgerSchema);

@@ -5,7 +5,8 @@ const stockTransferSchema = new mongoose.Schema(
     transferNo: {
       type: String,
       required: true,
-      unique: true, // ✅ Ensure uniqueness
+      unique: true, // Unique transfer identifier (e.g., TR-00001)
+      trim: true,
     },
     fromWarehouse: {
       type: mongoose.Schema.Types.ObjectId,
@@ -33,28 +34,27 @@ const stockTransferSchema = new mongoose.Schema(
     },
     note: {
       type: String,
+      default: "",
+      trim: true,
     },
     purpose: {
       type: String,
       default: "Transferred",
+      trim: true,
     },
     fromLocation: {
-      type: String,
-      trim: true,
-      default: "",
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      default: null, // Source rack/location
     },
     toLocation: {
-      type: String,
-      trim: true,
-      default: "",
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      default: null, // Target rack/location
     },
   },
   { timestamps: true }
 );
 
-// ✅ Safe export
-const StockTransfer =
-  mongoose.models.StockTransfer ||
+export default mongoose.models.StockTransfer ||
   mongoose.model("StockTransfer", stockTransferSchema);
-
-export default StockTransfer;

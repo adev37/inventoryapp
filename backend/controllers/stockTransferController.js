@@ -2,9 +2,9 @@ import mongoose from "mongoose";
 import StockTransfer from "../models/StockTransfer.js";
 import StockLedger from "../models/StockLedger.js";
 import Location from "../models/Location.js";
-import getNextSequence from "../utils/getNextSequence.js";
+import Item from "../models/Item.js";
 
-// ➕ Create Stock Transfer with auto-incremented transferNo
+// ➕ Create Stock Transfer without sequence
 export const createStockTransfer = async (req, res) => {
   try {
     const {
@@ -17,13 +17,19 @@ export const createStockTransfer = async (req, res) => {
       toLocation,
     } = req.body;
 
-    if (fromWarehouse === toWarehouse && fromLocation === toLocation) {
+    // 🛑 Prevent transfer to same place (rack-aware)
+    if (
+      fromWarehouse === toWarehouse &&
+      (fromLocation || "") === (toLocation || "")
+    ) {
       return res
         .status(400)
         .json({ message: "Source and destination must differ." });
     }
 
     const now = new Date();
+
+    // 🧐 Sanitize ObjectIds
     const fromLocationId = mongoose.Types.ObjectId.isValid(fromLocation)
       ? new mongoose.Types.ObjectId(fromLocation)
       : null;
@@ -31,22 +37,34 @@ export const createStockTransfer = async (req, res) => {
       ? new mongoose.Types.ObjectId(toLocation)
       : null;
 
-    const stock = await StockLedger.find({
-      item,
-      warehouse: fromWarehouse,
-      ...(fromLocationId && { location: fromLocationId }),
-    });
+    // 🔹 Load all relevant ledger entries
+    const ledgerEntries = await StockLedger.find({ item }).lean();
 
-    const available = stock.reduce((sum, e) => sum + e.quantity, 0);
-    if (available < quantity) {
-      return res
-        .status(400)
-        .json({ message: `Insufficient stock. Available: ${available}` });
+    // 🔹 Build stockMap (correct key formatting)
+    const stockMap = {};
+    for (const entry of ledgerEntries) {
+      const key = `${entry.item}-${entry.warehouse}-${
+        entry.location ? entry.location.toString() : "null"
+      }`;
+      if (!stockMap[key]) stockMap[key] = 0;
+      stockMap[key] += entry.quantity;
     }
 
-    const seq = await getNextSequence("stockTransfer");
-    const transferNo = `TR-${String(seq).padStart(5, "0")}`;
+    const key = `${item}-${fromWarehouse}-${
+      fromLocationId ? fromLocationId.toString() : "null"
+    }`;
+    const availableQty = stockMap[key] || 0;
 
+    if (availableQty < quantity) {
+      return res
+        .status(400)
+        .json({ message: `Insufficient stock. Available: ${availableQty}` });
+    }
+
+    // 🆔 Use timestamp-based ID instead of sequence
+    const transferNo = `TR-${Date.now()}`;
+
+    // 📄 Ledger OUT
     await StockLedger.create({
       item,
       warehouse: fromWarehouse,
@@ -60,6 +78,7 @@ export const createStockTransfer = async (req, res) => {
       stockTransferNo: transferNo,
     });
 
+    // 📅 Ledger IN
     await StockLedger.create({
       item,
       warehouse: toWarehouse,
@@ -73,6 +92,7 @@ export const createStockTransfer = async (req, res) => {
       stockTransferNo: transferNo,
     });
 
+    // 📂 Save StockTransfer record
     const transfer = await StockTransfer.create({
       item,
       quantity,
@@ -95,7 +115,40 @@ export const createStockTransfer = async (req, res) => {
   }
 };
 
-// ✅ Get all transfers with rack/location names
+// 📦 Fetch available quantity for item+warehouse+location
+export const fetchAvailableQty = async (req, res) => {
+  try {
+    const { item, warehouse, location } = req.query;
+
+    if (!item || !warehouse || !location) {
+      return res
+        .status(400)
+        .json({ message: "Missing item, warehouse or location." });
+    }
+
+    const locationId = mongoose.Types.ObjectId.isValid(location)
+      ? new mongoose.Types.ObjectId(location)
+      : location;
+
+    const stockEntries = await StockLedger.find({
+      item,
+      warehouse,
+      location: locationId,
+    });
+
+    const availableQty = stockEntries.reduce(
+      (sum, entry) => sum + entry.quantity,
+      0
+    );
+
+    res.status(200).json({ quantity: availableQty });
+  } catch (error) {
+    console.error("❌ Error in fetchAvailableQty:", error);
+    res.status(500).json({ message: "Failed to fetch available quantity" });
+  }
+};
+
+// 📄 Get all transfers with rack/location names
 export const getAllTransfers = async (req, res) => {
   try {
     const transfers = await StockTransfer.find()
@@ -130,30 +183,67 @@ export const getAllTransfers = async (req, res) => {
   }
 };
 
-// 📦 Fetch available quantity (used in frontend dropdown onchange)
-export const fetchAvailableQty = async (req, res) => {
+// ✅ Get available items for transfer with rack awareness
+export const getAvailableTransferItems = async (req, res) => {
   try {
-    const { item, warehouse, location } = req.query;
+    const ledgerEntries = await StockLedger.find().lean();
 
-    if (!item || !warehouse) {
-      return res.status(400).json({ message: "Missing parameters." });
+    const stockMap = {}; // key = item-warehouse-location
+    for (const entry of ledgerEntries) {
+      if (!entry.item || !entry.warehouse) continue;
+
+      const locKey = entry.location ? entry.location.toString() : "null";
+      const key = `${entry.item}-${entry.warehouse}-${locKey}`;
+
+      if (!stockMap[key]) {
+        stockMap[key] = {
+          item: entry.item,
+          warehouse: entry.warehouse,
+          location: entry.location || null,
+          quantity: 0,
+        };
+      }
+
+      stockMap[key].quantity += entry.quantity;
     }
 
-    const locationId = mongoose.Types.ObjectId.isValid(location)
-      ? new mongoose.Types.ObjectId(location)
-      : null;
+    const validEntries = Object.values(stockMap).filter((e) => e.quantity > 0);
 
-    const ledger = await StockLedger.find({
-      item,
-      warehouse,
-      ...(locationId && { location: locationId }),
-    });
+    const itemIds = [...new Set(validEntries.map((e) => e.item.toString()))];
+    const items = await Item.find(
+      { _id: { $in: itemIds } },
+      "name modelNo"
+    ).lean();
+    const itemMap = {};
+    items.forEach((i) => (itemMap[i._id.toString()] = i));
 
-    const quantity = ledger.reduce((sum, l) => sum + l.quantity, 0);
+    const locationIds = [
+      ...new Set(validEntries.map((e) => e.location).filter(Boolean)),
+    ];
+    const locations = await Location.find(
+      { _id: { $in: locationIds } },
+      "name"
+    ).lean();
+    const locationMap = {};
+    locations.forEach((l) => (locationMap[l._id.toString()] = l.name));
 
-    res.status(200).json({ quantity });
+    const results = validEntries.map((entry) => ({
+      itemId: entry.item,
+      warehouseId: entry.warehouse,
+      locationId: entry.location,
+      quantity: entry.quantity,
+      itemName: itemMap[entry.item.toString()]?.name || "",
+      modelNo: itemMap[entry.item.toString()]?.modelNo || "",
+      locationName: entry.location
+        ? locationMap[entry.location.toString()] || ""
+        : "",
+    }));
+
+    res.json(results);
   } catch (error) {
-    console.error("❌ Error in fetchAvailableQty:", error);
-    res.status(500).json({ message: "Failed to fetch available quantity" });
+    console.error("❌ Error in getAvailableTransferItems:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch available transfer items" });
   }
 };

@@ -113,10 +113,10 @@ const Dashboard = () => {
                 <thead className="bg-gray-100 text-gray-700 font-medium">
                   <tr>
                     <th className="px-4 py-2 border">Item</th>
-                    <th className="px-4 py-2 border">Model No</th>
-                    <th className="px-4 py-2 border">Company</th>
+                    <th className="px-4 py-2 border">Model</th>
+                    {/* <th className="px-4 py-2 border">Company</th> */}
                     <th className="px-4 py-2 border">Warehouse</th>
-                    <th className="px-4 py-2 border text-right">Quantity</th>
+                    <th className="px-4 py-2 border text-right">Qty</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -124,7 +124,7 @@ const Dashboard = () => {
                     <tr key={i} className="border-t">
                       <td className="px-4 py-2">{s.item || "N/A"}</td>
                       <td className="px-4 py-2">{s.modelNo || "-"}</td>
-                      <td className="px-4 py-2">{s.companyName || "N/A"}</td>
+                      {/* <td className="px-4 py-2">{s.companyName || "N/A"}</td> */}
                       <td className="px-4 py-2">{s.warehouse || "N/A"}</td>
                       <td className="px-4 py-2 text-right">{s.quantity}</td>
                     </tr>

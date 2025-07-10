@@ -2,22 +2,20 @@ import express from "express";
 import {
   createStockTransfer,
   getAllTransfers,
+  getAvailableTransferItems,
   fetchAvailableQty,
 } from "../controllers/stockTransferController.js";
 import verifyToken from "../middleware/verifyToken.js";
 
 const router = express.Router();
-
-// 🔒 Apply token verification to all transfer routes
 router.use(verifyToken);
 
-// ➕ Create a new stock transfer
+// Existing routes
 router.post("/", createStockTransfer);
-
-// 📄 Get all stock transfer records
 router.get("/", getAllTransfers);
+router.get("/available-stock-by-location", fetchAvailableQty);
 
-// 📊 Get available qty for transfer (separate endpoint)
-router.get("/available", fetchAvailableQty);
+// ✅ New helper route for Postman use
+router.get("/available", getAvailableTransferItems);
 
 export default router;

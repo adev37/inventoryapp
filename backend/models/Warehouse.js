@@ -16,8 +16,8 @@ const warehouseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// 👇 Optional: prevent duplicate warehouse name-location combos
+// ✅ Optional: Prevent duplicate warehouses in same city/location
 // warehouseSchema.index({ name: 1, location: 1 }, { unique: true });
 
-const Warehouse = mongoose.model("Warehouse", warehouseSchema);
-export default Warehouse;
+export default mongoose.models.Warehouse ||
+  mongoose.model("Warehouse", warehouseSchema);

@@ -1,3 +1,4 @@
+// models/StockOut.js
 import mongoose from "mongoose";
 
 const stockOutSchema = new mongoose.Schema(
@@ -11,6 +12,11 @@ const stockOutSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Warehouse",
       required: true,
+    },
+    location: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      default: null,
     },
     quantity: {
       type: Number,
@@ -30,32 +36,21 @@ const stockOutSchema = new mongoose.Schema(
     },
     reason: {
       type: String,
+      trim: true,
     },
     tenderNo: {
       type: String,
+      trim: true,
     },
     returnProcessed: {
       type: Boolean,
       default: false,
     },
-    stockOutNo: {
-      type: String,
-      required: true,
-      unique: true, // ✅ Only this is needed
-    },
-    location: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Location",
-      required: false,
-    },
+
+    // ❌ Removed stockOutNo completely
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// ❌ REMOVE this — already declared via field options
-// stockOutSchema.index({ stockOutNo: 1 }, { unique: true });
-
-const StockOut = mongoose.model("StockOut", stockOutSchema);
-export default StockOut;
+export default mongoose.models.StockOut ||
+  mongoose.model("StockOut", stockOutSchema);

@@ -1,3 +1,4 @@
+// models/StockIn.js
 import mongoose from "mongoose";
 
 const stockInSchema = new mongoose.Schema(
@@ -26,16 +27,12 @@ const stockInSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
-    stockInNo: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    // ✅ NEW FIELD FOR RACK/LOCATION
+    // ❌ Removed stockInNo
+    // ✅ Rack/Location reference
     location: {
-      type: String,
-      trim: true,
-      default: "", // Optional: you can require this if needed
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      default: null,
     },
   },
   {
@@ -43,5 +40,5 @@ const stockInSchema = new mongoose.Schema(
   }
 );
 
-const StockIn = mongoose.model("StockIn", stockInSchema);
-export default StockIn;
+export default mongoose.models.StockIn ||
+  mongoose.model("StockIn", stockInSchema);

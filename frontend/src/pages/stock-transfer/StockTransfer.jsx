@@ -8,6 +8,8 @@ const StockTransfer = () => {
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
   const [availableQty, setAvailableQty] = useState(null);
+  const [prevRacks, setPrevRacks] = useState({});
+  const [allStock, setAllStock] = useState([]);
 
   const [form, setForm] = useState({
     item: "",
@@ -20,17 +22,26 @@ const StockTransfer = () => {
   });
 
   useEffect(() => {
-    fetchItems();
+    fetchCurrentStock();
     fetchWarehouses();
     fetchLocations();
   }, []);
 
-  const fetchItems = async () => {
+  const fetchCurrentStock = async () => {
     try {
-      const res = await API.get("/items");
-      setItems(res.data);
+      const res = await API.get("/current-stock");
+      setAllStock(res.data);
+      const uniqueItems = Array.from(
+        new Map(
+          res.data.map((entry) => [
+            entry.itemId,
+            { _id: entry.itemId, name: entry.item, modelNo: entry.modelNo },
+          ])
+        ).values()
+      );
+      setItems(uniqueItems);
     } catch {
-      toast.error("❌ Failed to fetch items.");
+      toast.error("❌ Failed to fetch current stock.");
     }
   };
 
@@ -52,33 +63,44 @@ const StockTransfer = () => {
     }
   };
 
-  const fetchAvailableQty = async () => {
-    if (form.item && form.fromWarehouse && form.fromLocation) {
-      try {
-        const res = await API.get("/stock-transfers/available", {
-          params: {
-            item: form.item,
-            warehouse: form.fromWarehouse,
-            location: form.fromLocation,
-          },
-        });
-        setAvailableQty(res.data.quantity || 0);
-      } catch (err) {
-        console.error("Failed to fetch qty:", err);
-        toast.error("❌ Failed to fetch available stock.");
-        setAvailableQty(null);
-      }
+  // 🔄 Auto update availableQty when relevant fields change
+  useEffect(() => {
+    if (form.item && form.fromWarehouse && form.fromLocation !== undefined) {
+      const match = allStock.find(
+        (s) =>
+          String(s.itemId) === String(form.item) &&
+          String(s.warehouseId) === String(form.fromWarehouse) &&
+          String(s.locationId || "") === String(form.fromLocation || "")
+      );
+      setAvailableQty(match?.quantity || 0);
     } else {
       setAvailableQty(null);
     }
-  };
-
-  useEffect(() => {
-    fetchAvailableQty();
-  }, [form.item, form.fromWarehouse, form.fromLocation]);
+  }, [form.item, form.fromWarehouse, form.fromLocation, allStock]);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    if (name === "fromWarehouse") {
+      setPrevRacks((prev) => ({
+        ...prev,
+        [form.fromWarehouse]: form.fromLocation,
+      }));
+      const restored = prevRacks[value] || "";
+      setForm((prev) => ({
+        ...prev,
+        fromWarehouse: value,
+        fromLocation: restored,
+      }));
+      setAvailableQty(null);
+      return;
+    }
+
+    if (name === "fromLocation") {
+      setAvailableQty(null);
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -92,18 +114,21 @@ const StockTransfer = () => {
       quantity,
     } = form;
 
-    if (fromWarehouse === toWarehouse && fromLocation === toLocation) {
-      toast.error("❌ From and To locations must differ.");
-      return;
-    }
-
     if (!item || !fromWarehouse || !fromLocation || !toWarehouse || !quantity) {
       toast.error("❗ Please fill all required fields.");
       return;
     }
 
+    if (
+      String(fromWarehouse) === String(toWarehouse) &&
+      String(fromLocation || "") === String(toLocation || "")
+    ) {
+      toast.error("❌ From and To locations must differ.");
+      return;
+    }
+
     if (availableQty === null) {
-      toast.error("❌ Please select source warehouse and rack.");
+      toast.error("❌ Please select source rack/warehouse.");
       return;
     }
 
@@ -115,11 +140,10 @@ const StockTransfer = () => {
     try {
       await API.post("/stock-transfers", {
         ...form,
-        quantity: parseInt(quantity) || 0,
+        quantity: parseInt(quantity),
       });
 
       toast.success("✅ Stock transfer successful");
-
       setForm({
         item: "",
         fromWarehouse: "",
@@ -130,17 +154,19 @@ const StockTransfer = () => {
         note: "",
       });
       setAvailableQty(null);
+      fetchCurrentStock();
     } catch (err) {
       toast.error(err.response?.data?.message || "❌ Transfer failed");
     }
   };
 
-  const getFromLocations = (warehouseId) =>
-    locations.filter((loc) => {
-      const locWarehouseId =
+  const getFromLocations = (warehouseId) => {
+    return locations.filter((loc) => {
+      const wId =
         typeof loc.warehouse === "object" ? loc.warehouse._id : loc.warehouse;
-      return locWarehouseId === warehouseId;
+      return String(wId) === String(warehouseId);
     });
+  };
 
   const getToLocations = () => {
     const seen = new Set();
@@ -162,6 +188,7 @@ const StockTransfer = () => {
         <form
           onSubmit={handleSubmit}
           className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* ITEM */}
           <div>
             <label className="block mb-1 text-sm font-medium">
               Select Item
@@ -170,8 +197,8 @@ const StockTransfer = () => {
               name="item"
               value={form.item}
               onChange={handleChange}
-              required
-              className="w-full border border-gray-300 rounded px-3 py-2">
+              className="w-full border border-gray-300 rounded px-3 py-2"
+              required>
               <option value="">Select Item</option>
               {items.map((item) => (
                 <option key={item._id} value={item._id}>
@@ -181,6 +208,7 @@ const StockTransfer = () => {
             </select>
           </div>
 
+          {/* FROM WAREHOUSE */}
           <div>
             <label className="block mb-1 text-sm font-medium">
               From Warehouse
@@ -189,8 +217,8 @@ const StockTransfer = () => {
               name="fromWarehouse"
               value={form.fromWarehouse}
               onChange={handleChange}
-              required
-              className="w-full border border-gray-300 rounded px-3 py-2">
+              className="w-full border border-gray-300 rounded px-3 py-2"
+              required>
               <option value="">From Warehouse</option>
               {warehouses.map((wh) => (
                 <option key={wh._id} value={wh._id}>
@@ -200,14 +228,15 @@ const StockTransfer = () => {
             </select>
           </div>
 
+          {/* FROM RACK */}
           <div>
             <label className="block mb-1 text-sm font-medium">From Rack</label>
             <select
               name="fromLocation"
               value={form.fromLocation}
               onChange={handleChange}
-              required
-              className="w-full border border-gray-300 rounded px-3 py-2">
+              className="w-full border border-gray-300 rounded px-3 py-2"
+              required>
               <option value="">Select Rack</option>
               {getFromLocations(form.fromWarehouse).map((loc) => (
                 <option key={loc._id} value={loc._id}>
@@ -217,6 +246,7 @@ const StockTransfer = () => {
             </select>
           </div>
 
+          {/* TO WAREHOUSE */}
           <div>
             <label className="block mb-1 text-sm font-medium">
               To Warehouse
@@ -225,8 +255,8 @@ const StockTransfer = () => {
               name="toWarehouse"
               value={form.toWarehouse}
               onChange={handleChange}
-              required
-              className="w-full border border-gray-300 rounded px-3 py-2">
+              className="w-full border border-gray-300 rounded px-3 py-2"
+              required>
               <option value="">To Warehouse</option>
               {warehouses.map((wh) => (
                 <option key={wh._id} value={wh._id}>
@@ -236,6 +266,7 @@ const StockTransfer = () => {
             </select>
           </div>
 
+          {/* TO RACK */}
           <div>
             <label className="block mb-1 text-sm font-medium">To Rack</label>
             <select
@@ -252,6 +283,7 @@ const StockTransfer = () => {
             </select>
           </div>
 
+          {/* QUANTITY */}
           <div>
             <label className="block mb-1 text-sm font-medium">
               Quantity (Available: {availableQty !== null ? availableQty : "-"})
@@ -261,13 +293,14 @@ const StockTransfer = () => {
               name="quantity"
               value={form.quantity}
               onChange={handleChange}
+              className="w-full border border-gray-300 rounded px-3 py-2"
+              placeholder="Enter quantity"
               required
               min="1"
-              placeholder="Enter quantity"
-              className="w-full border border-gray-300 rounded px-3 py-2"
             />
           </div>
 
+          {/* REMARKS */}
           <div className="md:col-span-2">
             <label className="block mb-1 text-sm font-medium">Remarks</label>
             <input
@@ -280,10 +313,11 @@ const StockTransfer = () => {
             />
           </div>
 
+          {/* SUBMIT */}
           <div className="md:col-span-2 mt-2">
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded transition duration-200">
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded">
               🔁 Transfer Stock
             </button>
           </div>

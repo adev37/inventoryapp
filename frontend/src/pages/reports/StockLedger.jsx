@@ -81,12 +81,10 @@ const StockLedger = () => {
     const exportData = filteredEntries.map((entry, idx) => ({
       "Sl#": idx + 1,
       Date: formatDate(entry.date),
-      "Stock In No.": entry.stockInNo || "-",
-      "Stock Out No.": entry.stockOutNo || "-",
       Item: entry.item?.name || "-",
       "Model No.": entry.item?.modelNo || "-",
       Warehouse: entry.warehouse?.name || "-",
-      "Rack/Location": entry.locationDisplay || "-", // ✅ Use display name
+      "Rack/Location": entry.locationDisplay || "-",
       "Qty (+/-)": entry.quantity,
       Action: entry.action,
       Purpose: entry.purpose || "-",
@@ -192,12 +190,10 @@ const StockLedger = () => {
         ) : currentItems.length === 0 ? (
           <p className="p-6 text-gray-500">No stock ledger records found.</p>
         ) : (
-          <table className="min-w-[1200px] table-auto border border-gray-300 text-sm whitespace-nowrap">
+          <table className="min-w-[1000px] table-auto border border-gray-300 text-sm whitespace-nowrap">
             <thead className="bg-gray-100">
               <tr>
                 <th className="p-2 border">Date</th>
-                <th className="p-2 border">Stock In No.</th>
-                <th className="p-2 border">Stock Out No.</th>
                 <th className="p-2 border min-w-[180px]">Item</th>
                 <th className="p-2 border">Model No.</th>
                 <th className="p-2 border min-w-[200px]">Warehouse</th>
@@ -212,12 +208,6 @@ const StockLedger = () => {
               {currentItems.map((entry) => (
                 <tr key={entry._id} className="border-t hover:bg-gray-50">
                   <td className="p-2 border">{formatDate(entry.date)}</td>
-                  <td className="p-2 border text-center">
-                    {entry.stockInNo || "-"}
-                  </td>
-                  <td className="p-2 border text-center">
-                    {entry.stockOutNo || "-"}
-                  </td>
                   <td className="p-2 border">{entry.item?.name || "-"}</td>
                   <td className="p-2 border">{entry.item?.modelNo || "-"}</td>
                   <td className="p-2 border">{entry.warehouse?.name || "-"}</td>

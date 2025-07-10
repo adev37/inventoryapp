@@ -5,7 +5,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const AddStockOut = () => {
   const [items, setItems] = useState([
-    { item: "", warehouse: "", location: "", locationName: "", quantity: "" },
+    { item: "", warehouse: "", location: "", quantity: "" },
   ]);
   const [itemSearch, setItemSearch] = useState([""]);
   const [itemSuggestions, setItemSuggestions] = useState([]);
@@ -17,61 +17,45 @@ const AddStockOut = () => {
   const [returnDate, setReturnDate] = useState("");
   const [allItems, setAllItems] = useState([]);
   const [allWarehouses, setAllWarehouses] = useState([]);
-  const [allLocations, setAllLocations] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [rackOptions, setRackOptions] = useState({});
 
-  // ✅ Fetch dropdown data
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchInitials = async () => {
       try {
-        const [itemRes, warehouseRes, locationRes] = await Promise.all([
+        const [itemRes, warehouseRes] = await Promise.all([
           API.get("/items"),
           API.get("/warehouses"),
-          API.get("/locations"),
         ]);
         setAllItems(itemRes.data);
         setAllWarehouses(warehouseRes.data);
-        setAllLocations(locationRes.data);
       } catch {
-        toast.error("❌ Failed to load items, warehouses or locations");
+        toast.error("❌ Failed to load data");
       }
     };
-    fetchData();
+    fetchInitials();
   }, []);
 
-  // ✅ Fetch rack location based on selected item+warehouse
-  const handleItemChange = async (index, e) => {
+  const fetchRackOptions = async (index, item, warehouse) => {
+    try {
+      const res = await API.get(
+        `/current-stock?item=${item}&warehouse=${warehouse}`
+      );
+      const valid = res.data.filter((entry) => entry.quantity > 0);
+      setRackOptions((prev) => ({ ...prev, [index]: valid }));
+    } catch (err) {
+      console.error("Rack fetch error", err);
+    }
+  };
+
+  const handleItemChange = (index, e) => {
     const updated = [...items];
     updated[index][e.target.name] = e.target.value;
     setItems(updated);
 
-    const { item: selectedItem, warehouse: selectedWarehouse } = updated[index];
-
-    if (selectedItem && selectedWarehouse) {
-      try {
-        const res = await API.get(
-          `/current-stock?item=${selectedItem}&warehouse=${selectedWarehouse}`
-        );
-        const stockEntries = res.data.filter((entry) => entry.quantity > 0);
-
-        if (stockEntries.length > 0) {
-          const rackName = stockEntries[0].location;
-          const locationObj = allLocations.find((loc) => loc.name === rackName);
-          updated[index].location = locationObj?._id || null;
-          updated[index].locationName = locationObj?.name || "Rack Unknown";
-        } else {
-          updated[index].location = null;
-          updated[index].locationName = "Rack Unknown";
-        }
-
-        setItems([...updated]);
-      } catch (error) {
-        console.error("Error fetching location", error);
-      }
-    }
+    const { item, warehouse } = updated[index];
+    if (item && warehouse) fetchRackOptions(index, item, warehouse);
   };
 
-  // ✅ Search and suggest item
   const handleItemSearch = (index, value) => {
     const updatedSearch = [...itemSearch];
     updatedSearch[index] = value;
@@ -80,12 +64,12 @@ const AddStockOut = () => {
 
     if (value.length > 0) {
       const filtered = allItems.filter(
-        (item) =>
-          item.name.toLowerCase().includes(value.toLowerCase()) ||
-          item.modelNo.toLowerCase().includes(value.toLowerCase())
+        (i) =>
+          i.name.toLowerCase().includes(value.toLowerCase()) ||
+          i.modelNo.toLowerCase().includes(value.toLowerCase())
       );
       setItemSuggestions(filtered);
-      handleItemChange(index, { target: { name: "item", value: "" } }); // reset item
+      handleItemChange(index, { target: { name: "item", value: "" } });
     } else {
       setItemSuggestions([]);
     }
@@ -105,7 +89,7 @@ const AddStockOut = () => {
   const addItem = () => {
     setItems([
       ...items,
-      { item: "", warehouse: "", location: "", locationName: "", quantity: "" },
+      { item: "", warehouse: "", location: "", quantity: "" },
     ]);
     setItemSearch([...itemSearch, ""]);
   };
@@ -119,121 +103,82 @@ const AddStockOut = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
-    const hasDuplicate = items.some(
-      (item, idx) =>
-        items.findIndex(
-          (i) => i.item === item.item && i.warehouse === item.warehouse
-        ) !== idx
-    );
-    if (hasDuplicate) {
-      toast.error("❌ Duplicate item & warehouse entries found.");
-      setLoading(false);
-      return;
-    }
-
     try {
       const payload = {
         items: items.map((itm) => ({
           item: itm.item,
           warehouse: itm.warehouse,
-          quantity: itm.quantity,
           location: itm.location || null,
-          purpose,
-          reason,
-          tenderNo,
+          quantity: itm.quantity,
         })),
+        purpose,
+        reason,
+        tenderNo,
         date,
-        returnDate: purpose === "Demo" ? returnDate : undefined,
+        returnDate: purpose === "Demo" ? returnDate : null,
       };
-
       const res = await API.post("/stock-out", payload);
-      toast.success(res?.data?.message || "✅ Stock Out recorded!");
+      toast.success(res?.data?.message || "✅ Stock Out successful");
 
-      setItems([
-        {
-          item: "",
-          warehouse: "",
-          location: "",
-          locationName: "",
-          quantity: "",
-        },
-      ]);
+      setItems([{ item: "", warehouse: "", location: "", quantity: "" }]);
       setItemSearch([""]);
       setPurpose("");
       setReason("");
       setTenderNo("");
       setDate("");
       setReturnDate("");
+      setRackOptions({});
     } catch (err) {
-      const insufficient = err?.response?.data?.insufficient || [];
-      if (insufficient.length > 0) {
-        insufficient.forEach((e) => {
-          toast.error(`❌ ${e.message}`);
-        });
-      } else {
-        toast.error(err?.response?.data?.message || "❌ Something went wrong.");
-      }
+      const errorMsg = err?.response?.data?.message || "❌ Stock Out failed.";
+      toast.error(errorMsg);
     }
-
-    setLoading(false);
   };
 
   return (
     <div className="p-6">
       <ToastContainer position="top-right" autoClose={4000} theme="colored" />
-      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-        📤 Stock Out
-      </h2>
+      <h2 className="text-2xl font-bold mb-4">📤 Stock Out</h2>
       <form
         onSubmit={handleSubmit}
-        className="bg-white shadow-md p-6 rounded-lg max-w-4xl">
+        className="bg-white shadow-md p-6 rounded-lg">
         {items.map((itm, idx) => (
           <div
             key={idx}
-            className="grid grid-cols-1 md:grid-cols-4 gap-4 border-b pb-2 mb-4 relative">
-            {/* Search Item */}
-            <div className="relative col-span-1">
-              <label className="block text-sm font-medium mb-1">
-                Search Item
-              </label>
+            className="grid md:grid-cols-4 gap-4 border-b pb-4 mb-4 relative">
+            <div className="relative">
+              <label className="block mb-1">Search Item</label>
               <input
                 type="text"
                 value={itemSearch[idx] || ""}
                 onChange={(e) => handleItemSearch(idx, e.target.value)}
                 placeholder="Type to search item"
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                autoComplete="off"
+                className="w-full border px-3 py-2 rounded"
                 required
               />
               {itemSearch[idx] &&
                 activeSuggestionIdx === idx &&
                 itemSuggestions.length > 0 && (
-                  <ul className="absolute bg-white border border-gray-200 rounded shadow z-10 w-full max-h-44 overflow-auto mt-1">
-                    {itemSuggestions.map((suggestion) => (
+                  <ul className="absolute z-10 bg-white border rounded shadow w-full max-h-48 overflow-auto">
+                    {itemSuggestions.map((s) => (
                       <li
-                        key={suggestion._id}
-                        className="px-3 py-2 cursor-pointer hover:bg-blue-100"
-                        onClick={() => handleSelectSuggestion(idx, suggestion)}>
-                        {suggestion.name} ({suggestion.modelNo})
+                        key={s._id}
+                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => handleSelectSuggestion(idx, s)}>
+                        {s.name} ({s.modelNo})
                       </li>
                     ))}
                   </ul>
                 )}
             </div>
 
-            {/* Warehouse */}
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Select Warehouse
-              </label>
+              <label className="block mb-1">Select Warehouse</label>
               <select
                 name="warehouse"
                 value={itm.warehouse}
                 onChange={(e) => handleItemChange(idx, e)}
-                required
-                className="w-full border border-gray-300 rounded px-3 py-2">
+                className="w-full border px-3 py-2 rounded"
+                required>
                 <option value="">Select Warehouse</option>
                 {allWarehouses.map((w) => (
                   <option key={w._id} value={w._id}>
@@ -243,38 +188,38 @@ const AddStockOut = () => {
               </select>
             </div>
 
-            {/* Location */}
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Rack Location
-              </label>
-              <input
-                type="text"
-                value={
-                  itm.locationName ? `🗄️ ${itm.locationName}` : "Rack Unknown"
-                }
-                disabled
-                className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100"
-              />
+              <label className="block mb-1">Select Rack</label>
+              <select
+                name="location"
+                value={itm.location}
+                onChange={(e) => handleItemChange(idx, e)}
+                className="w-full border px-3 py-2 rounded"
+                required>
+                <option value="">Select Rack</option>
+                {(rackOptions[idx] || []).map((loc) => (
+                  <option key={loc.locationId} value={loc.locationId}>
+                    {loc.location} (Available: {loc.quantity})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Quantity */}
             <div>
-              <label className="block text-sm font-medium mb-1">Quantity</label>
+              <label className="block mb-1">Quantity</label>
               <input
                 type="number"
                 name="quantity"
                 min={1}
                 value={itm.quantity}
                 onChange={(e) => handleItemChange(idx, e)}
-                placeholder="Quantity"
+                className="w-full border px-3 py-2 rounded"
                 required
-                className="w-full border border-gray-300 rounded px-3 py-2"
               />
             </div>
 
             {items.length > 1 && (
-              <div className="md:col-span-4 flex justify-end">
+              <div className="col-span-4 text-right">
                 <button
                   type="button"
                   onClick={() => removeItem(idx)}
@@ -289,85 +234,74 @@ const AddStockOut = () => {
         <button
           type="button"
           onClick={addItem}
-          className="bg-blue-500 text-white px-3 py-1 rounded mb-3">
+          className="bg-blue-500 text-white px-3 py-1 rounded mb-4">
           + Add Another Item
         </button>
 
-        {/* Purpose, Dates, Reason */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Purpose</label>
-          <select
-            name="purpose"
-            value={purpose}
-            onChange={(e) => setPurpose(e.target.value)}
-            required
-            className="w-full border border-gray-300 rounded px-3 py-2">
-            <option value="">Select Purpose</option>
-            <option value="Sale">Sale</option>
-            <option value="Demo">Demo</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            🗓 Stock Out Date
-          </label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-            className="w-full border border-gray-300 rounded px-3 py-2"
-          />
-        </div>
-
-        {purpose === "Demo" && (
+        <div className="grid md:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium mb-1">
-              🕓 Expected Return Date
-            </label>
+            <label className="block mb-1">Purpose</label>
+            <select
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+              className="w-full border px-3 py-2 rounded"
+              required>
+              <option value="">Select Purpose</option>
+              <option value="Sale">Sale</option>
+              <option value="Demo">Demo</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block mb-1">Stock Out Date</label>
             <input
               type="date"
-              value={returnDate}
-              onChange={(e) => setReturnDate(e.target.value)}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full border px-3 py-2 rounded"
               required
-              className="w-full border border-gray-300 rounded px-3 py-2"
             />
           </div>
-        )}
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Reason</label>
+          {purpose === "Demo" && (
+            <div>
+              <label className="block mb-1">Expected Return Date</label>
+              <input
+                type="date"
+                value={returnDate}
+                onChange={(e) => setReturnDate(e.target.value)}
+                className="w-full border px-3 py-2 rounded"
+                required
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="mb-4">
+          <label className="block mb-1">Reason</label>
           <input
             type="text"
-            name="reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Reason"
+            className="w-full border px-3 py-2 rounded"
             required
-            className="w-full border border-gray-300 rounded px-3 py-2"
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Tender No.</label>
+        <div className="mb-4">
+          <label className="block mb-1">Tender No.</label>
           <input
             type="text"
-            name="tenderNo"
             value={tenderNo}
             onChange={(e) => setTenderNo(e.target.value)}
-            placeholder="Tender Number"
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            className="w-full border px-3 py-2 rounded"
           />
         </div>
 
         <button
           type="submit"
-          disabled={loading}
-          className={`w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 rounded transition duration-200 mt-4 ${
-            loading ? "opacity-60 cursor-not-allowed" : ""
-          }`}>
-          {loading ? "Saving..." : "📀 Save Stock Out"}
+          className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded mt-2">
+          Save Stock Out
         </button>
       </form>
     </div>

@@ -59,29 +59,27 @@ export const getAllLocations = async (req, res) => {
 };
 
 // ✏️ Update a location
-export const updateLocation = async (req, res) => {
+// ✏️ Update all locations with the same rack name across warehouses
+export const updateLocationsByName = async (req, res) => {
   try {
-    const { name, description } = req.body;
-    const { id } = req.params;
+    const { name } = req.params;
+    const { newName, description } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ message: "Location name is required." });
+    if (!newName) {
+      return res.status(400).json({ message: "New name is required." });
     }
 
-    const updated = await Location.findByIdAndUpdate(
-      id,
-      { name, description },
-      { new: true, runValidators: true }
+    const result = await Location.updateMany(
+      { name: { $regex: new RegExp("^" + name + "$", "i") } },
+      { name: newName, description }
     );
 
-    if (!updated) {
-      return res.status(404).json({ message: "Location not found." });
-    }
-
-    res.json(updated);
+    res.json({
+      message: `✅ Updated ${result.modifiedCount} locations named "${name}".`,
+    });
   } catch (error) {
-    console.error("❌ Error in updateLocation:", error);
-    res.status(500).json({ message: "Failed to update location." });
+    console.error("❌ Error updating locations by name:", error);
+    res.status(500).json({ message: "Failed to update locations." });
   }
 };
 
