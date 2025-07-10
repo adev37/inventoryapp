@@ -5,6 +5,9 @@ import "react-toastify/dist/ReactToastify.css";
 
 const AdjustStock = () => {
   const [items, setItems] = useState([]);
+  const [itemSearch, setItemSearch] = useState("");
+  const [itemSuggestions, setItemSuggestions] = useState([]);
+
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
   const [availableQty, setAvailableQty] = useState(null);
@@ -68,6 +71,28 @@ const AdjustStock = () => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
+  const handleItemSearch = (value) => {
+    setItemSearch(value);
+    setForm((prev) => ({ ...prev, item: "" }));
+    if (value.length > 0) {
+      setItemSuggestions(
+        items.filter(
+          (item) =>
+            item.name.toLowerCase().includes(value.toLowerCase()) ||
+            item.modelNo.toLowerCase().includes(value.toLowerCase())
+        )
+      );
+    } else {
+      setItemSuggestions([]);
+    }
+  };
+
+  const handleSelectSuggestion = (suggestion) => {
+    setForm((prev) => ({ ...prev, item: suggestion._id }));
+    setItemSearch(`${suggestion.name} (${suggestion.modelNo})`);
+    setItemSuggestions([]);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -96,13 +121,13 @@ const AdjustStock = () => {
         action: "IN",
         reason: "",
       });
+      setItemSearch("");
       setAvailableQty(null);
     } catch (err) {
       toast.error(err.response?.data?.message || "❌ Failed to adjust stock.");
     }
   };
 
-  // ✅ Deduplicate locations by name
   const getUniqueLocations = () => {
     const seen = new Set();
     return locations.filter((loc) => {
@@ -123,23 +148,32 @@ const AdjustStock = () => {
         <form
           onSubmit={handleSubmit}
           className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Item */}
-          <div>
+          {/* Item Autocomplete */}
+          <div className="relative">
             <label className="block mb-1 text-sm font-medium">
-              Select Item
+              Search Item
             </label>
-            <select
-              name="item"
-              value={form.item}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded px-3 py-2">
-              <option value="">Select Item</option>
-              {items.map((i) => (
-                <option key={i._id} value={i._id}>
-                  {i.name} ({i.modelNo})
-                </option>
-              ))}
-            </select>
+            <input
+              type="text"
+              value={itemSearch}
+              onChange={(e) => handleItemSearch(e.target.value)}
+              placeholder="Type to search item"
+              className="w-full border border-gray-300 rounded px-3 py-2"
+              required
+              autoComplete="off"
+            />
+            {itemSuggestions.length > 0 && (
+              <ul className="absolute z-10 bg-white border rounded shadow w-full max-h-48 overflow-auto">
+                {itemSuggestions.map((s) => (
+                  <li
+                    key={s._id}
+                    className="px-3 py-2 cursor-pointer hover:bg-blue-100"
+                    onClick={() => handleSelectSuggestion(s)}>
+                    {s.name} ({s.modelNo})
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Warehouse */}
@@ -161,7 +195,7 @@ const AdjustStock = () => {
             </select>
           </div>
 
-          {/* Location (Optional) */}
+          {/* Location */}
           <div>
             <label className="block mb-1 text-sm font-medium">
               Rack / Location (Optional)

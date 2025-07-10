@@ -5,6 +5,10 @@ import "react-toastify/dist/ReactToastify.css";
 
 const StockTransfer = () => {
   const [items, setItems] = useState([]);
+  const [itemSearch, setItemSearch] = useState("");
+  const [itemSuggestions, setItemSuggestions] = useState([]);
+  const [activeSuggestion, setActiveSuggestion] = useState(false);
+
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
   const [currentStock, setCurrentStock] = useState([]);
@@ -20,19 +24,19 @@ const StockTransfer = () => {
     reason: "",
   });
 
-  const [prevRackMemory, setPrevRackMemory] = useState({}); // warehouseId => locationId
+  const [prevRackMemory, setPrevRackMemory] = useState({});
 
   useEffect(() => {
     const fetchInitial = async () => {
       try {
-        const [itemRes, warehouseRes, locationRes, stockRes] =
+        const [itemsRes, warehouseRes, locationRes, stockRes] =
           await Promise.all([
             API.get("/items"),
             API.get("/warehouses"),
             API.get("/locations"),
             API.get("/current-stock"),
           ]);
-        setItems(itemRes.data);
+        setItems(itemsRes.data);
         setWarehouses(warehouseRes.data);
         setLocations(locationRes.data);
         setCurrentStock(stockRes.data);
@@ -73,13 +77,11 @@ const StockTransfer = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Handle memory of previous rack for each warehouse
     if (name === "fromWarehouse") {
       setPrevRackMemory((prev) => ({
         ...prev,
         [form.fromWarehouse]: form.fromLocation,
       }));
-
       const restoredRack = prevRackMemory[value] || "";
       setForm((prev) => ({
         ...prev,
@@ -89,23 +91,32 @@ const StockTransfer = () => {
       return;
     }
 
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleItemSearch = (value) => {
+    setItemSearch(value);
+    setActiveSuggestion(true);
+    setItemSuggestions(
+      items.filter(
+        (item) =>
+          item.name.toLowerCase().includes(value.toLowerCase()) ||
+          item.modelNo.toLowerCase().includes(value.toLowerCase())
+      )
+    );
+    setForm((prev) => ({ ...prev, item: "" }));
+  };
+
+  const handleSelectSuggestion = (suggestion) => {
+    setForm((prev) => ({ ...prev, item: suggestion._id }));
+    setItemSearch(`${suggestion.name} (${suggestion.modelNo})`);
+    setItemSuggestions([]);
+    setActiveSuggestion(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const {
-      item,
-      fromWarehouse,
-      toWarehouse,
-      fromLocation,
-      toLocation,
-      quantity,
-      reason,
-    } = form;
+    const { item, fromWarehouse, toWarehouse, quantity, reason } = form;
 
     if (!item || !fromWarehouse || !toWarehouse || !quantity || !reason) {
       toast.error("⚠️ Please fill all required fields.");
@@ -124,16 +135,10 @@ const StockTransfer = () => {
 
     try {
       const res = await API.post("/stock-transfers", {
-        item,
-        fromWarehouse,
-        toWarehouse,
-        fromLocation,
-        toLocation,
+        ...form,
         quantity: parseInt(quantity),
-        reason,
         date: new Date(),
       });
-
       toast.success(res.data.message);
       setForm({
         item: "",
@@ -144,6 +149,7 @@ const StockTransfer = () => {
         quantity: "",
         reason: "",
       });
+      setItemSearch("");
       setAvailableQty(null);
     } catch (err) {
       toast.error(err.response?.data?.message || "Transfer failed.");
@@ -170,24 +176,31 @@ const StockTransfer = () => {
         <form
           onSubmit={handleSubmit}
           className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Item */}
-          <div>
-            <label className="block mb-1 font-medium">Item</label>
-            <select
-              name="item"
-              value={form.item}
-              onChange={handleChange}
-              className="w-full border px-3 py-2 rounded">
-              <option value="">Select Item</option>
-              {items.map((i) => (
-                <option key={i._id} value={i._id}>
-                  {i.name} ({i.modelNo})
-                </option>
-              ))}
-            </select>
+          <div className="relative">
+            <label className="block mb-1 font-medium">Search Item</label>
+            <input
+              type="text"
+              value={itemSearch}
+              onChange={(e) => handleItemSearch(e.target.value)}
+              placeholder="Type to search item"
+              className="w-full border px-3 py-2 rounded"
+              autoComplete="off"
+              required
+            />
+            {itemSearch && activeSuggestion && itemSuggestions.length > 0 && (
+              <ul className="absolute z-10 bg-white border rounded shadow w-full max-h-48 overflow-auto">
+                {itemSuggestions.map((s) => (
+                  <li
+                    key={s._id}
+                    className="px-3 py-2 cursor-pointer hover:bg-blue-100"
+                    onClick={() => handleSelectSuggestion(s)}>
+                    {s.name} ({s.modelNo})
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
-          {/* Qty */}
           <div>
             <label className="block mb-1 font-medium">Quantity</label>
             <input
@@ -201,7 +214,6 @@ const StockTransfer = () => {
             />
           </div>
 
-          {/* From WH */}
           <div>
             <label className="block mb-1 font-medium">From Warehouse</label>
             <select
@@ -218,7 +230,6 @@ const StockTransfer = () => {
             </select>
           </div>
 
-          {/* From Location */}
           <div>
             <label className="block mb-1 font-medium">
               From Rack / Location
@@ -237,7 +248,6 @@ const StockTransfer = () => {
             </select>
           </div>
 
-          {/* To WH */}
           <div>
             <label className="block mb-1 font-medium">To Warehouse</label>
             <select
@@ -254,7 +264,6 @@ const StockTransfer = () => {
             </select>
           </div>
 
-          {/* To Location */}
           <div>
             <label className="block mb-1 font-medium">To Rack / Location</label>
             <select
@@ -271,7 +280,6 @@ const StockTransfer = () => {
             </select>
           </div>
 
-          {/* Reason */}
           <div className="md:col-span-2">
             <label className="block mb-1 font-medium">Reason</label>
             <input

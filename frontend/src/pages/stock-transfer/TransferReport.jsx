@@ -147,12 +147,12 @@ const TransferReport = () => {
             <thead className="bg-gray-100">
               <tr>
                 <th className="p-2 border">#</th>
+                <th className="p-2 border">Date</th>
                 <th className="p-2 border">Item</th>
                 <th className="p-2 border">Model No.</th>
                 <th className="p-2 border">Quantity</th>
                 <th className="p-2 border">From</th>
                 <th className="p-2 border">To</th>
-                <th className="p-2 border">Date</th>
                 <th className="p-2 border">Remarks</th>
               </tr>
             </thead>
@@ -160,14 +160,15 @@ const TransferReport = () => {
               {currentItems.map((t, i) => (
                 <tr key={t._id} className="border-t hover:bg-gray-50">
                   <td className="p-2 border">{indexOfFirst + i + 1}</td>
+                  <td className="p-2 border">
+                    {moment(t.date).format("DD-MM-YYYY")}
+                  </td>
                   <td className="p-2 border">{t.item?.name || "N/A"}</td>
                   <td className="p-2 border">{t.item?.modelNo || "-"}</td>
                   <td className="p-2 border">{t.quantity}</td>
                   <td className="p-2 border">{t.fromWarehouse?.name}</td>
                   <td className="p-2 border">{t.toWarehouse?.name}</td>
-                  <td className="p-2 border">
-                    {moment(t.date).format("DD-MM-YYYY")}
-                  </td>
+
                   <td className="p-2 border">{t.note || "-"}</td>
                 </tr>
               ))}
