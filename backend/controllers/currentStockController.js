@@ -4,6 +4,7 @@ import StockLedger from "../models/StockLedger.js";
 import Location from "../models/Location.js";
 
 // Get full current stock (rack-aware)
+// Get full current stock (only latest 4 entries)
 export const getCurrentStock = async (req, res) => {
   try {
     const { item, warehouse } = req.query;
@@ -14,6 +15,7 @@ export const getCurrentStock = async (req, res) => {
     const ledgerEntries = await StockLedger.find(filter)
       .populate("item", "name modelNo companyName")
       .populate("warehouse", "name")
+      .sort({ createdAt: -1 }) // Sort by most recent first
       .lean();
 
     const allLocations = await Location.find({}, "_id name").lean();
@@ -26,7 +28,6 @@ export const getCurrentStock = async (req, res) => {
       const itemObj = entry.item || {};
       const warehouseObj = entry.warehouse || {};
       const locationId = entry.location ? String(entry.location) : "null";
-
       const key = `${itemObj._id}|${warehouseObj._id}|${locationId}`;
 
       if (!stockMap[key]) {
@@ -40,13 +41,18 @@ export const getCurrentStock = async (req, res) => {
           warehouse: warehouseObj.name || "Unknown",
           location: locationMap[locationId] || "—",
           quantity: 0,
+          lastUpdated: entry.createdAt || entry._id.getTimestamp(), // Save creation time
         };
       }
 
       stockMap[key].quantity += entry.quantity;
     }
 
-    const results = Object.values(stockMap).filter((s) => s.quantity !== 0);
+    const results = Object.values(stockMap)
+      .filter((s) => s.quantity !== 0)
+      .sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated)) // sort by most recent
+      .slice(0, 4); // 🟢 take latest 4
+
     res.json(results);
   } catch (error) {
     console.error("❌ Error in getCurrentStock:", error);
