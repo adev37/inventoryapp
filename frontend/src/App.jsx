@@ -35,6 +35,7 @@ import AdjustStock from "./pages/stock/AdjustStock";
 import ViewStockOut from "./pages/stock/ViewStockOut";
 import AddLocation from "./pages/Location/AddLocation";
 import LocationList from "./pages/Location/LocationList";
+import StockInReport from "./pages/stock/StockInReport";
 
 // ✅ Removed invalid backend import
 
@@ -90,6 +91,7 @@ const App = () => {
             <Route path="add-location" element={<AddLocation />} />
             <Route path="locations" element={<LocationList />} />
             <Route path="stock-in" element={<StockIn />} />
+            <Route path="stock-report" element={<StockInReport />} />
             <Route path="stock-out" element={<StockOut />} />
             <Route path="view-stock-out" element={<ViewStockOut />} />
             <Route path="stock" element={<CurrentStock />} />

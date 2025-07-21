@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
 import API from "../../utils/axiosInstance";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 
 const StockInReport = () => {
   const [entries, setEntries] = useState([]);
@@ -32,12 +30,7 @@ const StockInReport = () => {
       setEntries(stockRes.data);
       setFiltered(stockRes.data);
       setWarehouses(warehouseRes.data);
-
-      // Deduplicate rack names by _id
-      const uniqueLocations = Array.from(
-        new Map(locationRes.data.map((loc) => [loc._id, loc])).values()
-      );
-      setLocations(uniqueLocations);
+      setLocations(locationRes.data);
 
       const allCompanies = [
         ...new Set(
@@ -93,45 +86,13 @@ const StockInReport = () => {
     maxQty,
   ]);
 
-  const handleReset = () => {
-    setSearchText("");
-    setWarehouseFilter("");
-    setLocationFilter("");
-    setCompanyFilter("");
-    setMinQty("");
-    setMaxQty("");
-  };
-
-  const exportToExcel = () => {
-    const exportData = filtered.map((entry, idx) => ({
-      "Sl#": idx + 1,
-      Date: entry.date ? new Date(entry.date).toLocaleDateString() : "—",
-      Item: entry.item?.name || "—",
-      "Model No.": entry.item?.modelNo || "—",
-      Company: entry.item?.companyName || "—",
-      Warehouse: entry.warehouse?.name || "—",
-      Rack: entry.location?.name || "—",
-      Qty: entry.quantity,
-      Remarks: entry.remarks || "—",
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "StockInReport");
-
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-    const blob = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    saveAs(blob, "StockInReport.xlsx");
-  };
+  // 🔄 Deduplicate rack locations by name
+  const uniqueRackLocations = [
+    ...new Map(locations.map((l) => [l.name, l])).values(),
+  ];
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6">
       <h2 className="text-2xl font-bold mb-4">📥 Stock In Report</h2>
 
       {/* Filters */}
@@ -161,7 +122,7 @@ const StockInReport = () => {
           onChange={(e) => setLocationFilter(e.target.value)}
           className="border px-3 py-2 rounded w-60">
           <option value="">📦 All Racks</option>
-          {locations.map((l) => (
+          {uniqueRackLocations.map((l) => (
             <option key={l._id} value={l._id}>
               {l.name}
             </option>
@@ -187,6 +148,7 @@ const StockInReport = () => {
           onChange={(e) => setMinQty(e.target.value)}
           className="border px-3 py-2 rounded w-28"
         />
+
         <input
           type="number"
           placeholder="Max Qty"
@@ -194,18 +156,6 @@ const StockInReport = () => {
           onChange={(e) => setMaxQty(e.target.value)}
           className="border px-3 py-2 rounded w-28"
         />
-
-        <button
-          onClick={handleReset}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
-          🔄 Reset
-        </button>
-
-        <button
-          onClick={exportToExcel}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
-          📄 Export to Excel
-        </button>
       </div>
 
       {/* Table */}
@@ -224,28 +174,20 @@ const StockInReport = () => {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan="8" className="text-center p-4 text-gray-500">
-                  No records found.
+            {filtered.map((e, idx) => (
+              <tr key={idx} className="border-t hover:bg-gray-50">
+                <td className="p-2 border">{e.item?.name}</td>
+                <td className="p-2 border">{e.item?.modelNo}</td>
+                <td className="p-2 border">{e.item?.companyName || "—"}</td>
+                <td className="p-2 border">{e.warehouse?.name}</td>
+                <td className="p-2 border">{e.location?.name || "—"}</td>
+                <td className="p-2 border">{e.quantity}</td>
+                <td className="p-2 border">
+                  {e.date ? new Date(e.date).toLocaleDateString() : "—"}
                 </td>
+                <td className="p-2 border">{e.remarks || "—"}</td>
               </tr>
-            ) : (
-              filtered.map((e, idx) => (
-                <tr key={idx} className="border-t hover:bg-gray-50">
-                  <td className="p-2 border">{e.item?.name}</td>
-                  <td className="p-2 border">{e.item?.modelNo}</td>
-                  <td className="p-2 border">{e.item?.companyName || "—"}</td>
-                  <td className="p-2 border">{e.warehouse?.name}</td>
-                  <td className="p-2 border">{e.location?.name || "—"}</td>
-                  <td className="p-2 border">{e.quantity}</td>
-                  <td className="p-2 border">
-                    {e.date ? new Date(e.date).toLocaleDateString() : "—"}
-                  </td>
-                  <td className="p-2 border">{e.remarks || "—"}</td>
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
       </div>

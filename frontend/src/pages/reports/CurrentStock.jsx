@@ -3,25 +3,16 @@ import API from "../../utils/axiosInstance";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
-const sortOptions = [
-  { label: "Latest Entry", value: "latest" },
-  { label: "Item Name (A-Z)", value: "nameAsc" },
-  { label: "Item Name (Z-A)", value: "nameDesc" },
-  { label: "Quantity (Highest First)", value: "qtyDesc" },
-  { label: "Quantity (Lowest First)", value: "qtyAsc" },
-  { label: "Warehouse (A-Z)", value: "warehouseAsc" },
-  { label: "Warehouse (Z-A)", value: "warehouseDesc" },
-];
-
 const CurrentStock = () => {
   const [stock, setStock] = useState([]);
   const [filteredStock, setFilteredStock] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [searchText, setSearchText] = useState("");
   const [selectedWarehouse, setSelectedWarehouse] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("");
-  const [sortBy, setSortBy] = useState("latest");
+  const [selectedCompany, setSelectedCompany] = useState("");
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
@@ -38,6 +29,8 @@ const CurrentStock = () => {
       const res = await API.get("/current-stock");
       setStock(res.data);
       setFilteredStock(res.data);
+      const uniqueCompanies = [...new Set(res.data.map((s) => s.companyName))];
+      setCompanies(uniqueCompanies);
     } catch (error) {
       console.error("Error fetching current stock:", error);
     } finally {
@@ -57,7 +50,10 @@ const CurrentStock = () => {
   const fetchLocations = async () => {
     try {
       const res = await API.get("/locations");
-      setLocations(res.data);
+      const unique = Array.from(
+        new Map(res.data.map((loc) => [loc.name, loc])).values()
+      );
+      setLocations(unique);
     } catch (err) {
       console.error("Error fetching locations:", err);
     }
@@ -90,36 +86,21 @@ const CurrentStock = () => {
       );
     }
 
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "latest":
-          return 0;
-        case "nameAsc":
-          return (a.item || "").localeCompare(b.item || "");
-        case "nameDesc":
-          return (b.item || "").localeCompare(a.item || "");
-        case "qtyAsc":
-          return a.quantity - b.quantity;
-        case "qtyDesc":
-          return b.quantity - a.quantity;
-        case "warehouseAsc":
-          return (a.warehouse || "").localeCompare(b.warehouse || "");
-        case "warehouseDesc":
-          return (b.warehouse || "").localeCompare(a.warehouse || "");
-        default:
-          return 0;
-      }
-    });
+    if (selectedCompany) {
+      filtered = filtered.filter(
+        (entry) => entry.companyName === selectedCompany
+      );
+    }
 
     setFilteredStock(filtered);
     setCurrentPage(1);
-  }, [searchText, selectedWarehouse, selectedLocation, sortBy, stock]);
+  }, [searchText, selectedWarehouse, selectedLocation, selectedCompany, stock]);
 
   const handleReset = () => {
     setSearchText("");
     setSelectedWarehouse("");
     setSelectedLocation("");
-    setSortBy("latest");
+    setSelectedCompany("");
     setFilteredStock(stock);
     setCurrentPage(1);
   };
@@ -155,7 +136,6 @@ const CurrentStock = () => {
     <div className="p-6 min-h-screen relative pb-24">
       <h2 className="text-2xl font-bold mb-4">📊 Current Stock Report</h2>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-4 items-center">
         <input
           type="text"
@@ -190,12 +170,13 @@ const CurrentStock = () => {
         </select>
 
         <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
+          value={selectedCompany}
+          onChange={(e) => setSelectedCompany(e.target.value)}
           className="border px-3 py-2 rounded w-60">
-          {sortOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
+          <option value="">🏢 All Companies</option>
+          {companies.map((comp, i) => (
+            <option key={i} value={comp}>
+              {comp}
             </option>
           ))}
         </select>
@@ -213,7 +194,6 @@ const CurrentStock = () => {
         </button>
       </div>
 
-      {/* Table */}
       {loading ? (
         <p className="text-blue-500">Loading stock data...</p>
       ) : currentItems.length === 0 ? (
@@ -256,7 +236,6 @@ const CurrentStock = () => {
         </div>
       )}
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-50 bg-white px-4 py-2 shadow rounded">
           <button

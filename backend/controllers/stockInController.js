@@ -15,6 +15,7 @@ export const createStockIn = async (req, res) => {
 
     for (const entry of items) {
       const { item, warehouse, quantity, location } = entry;
+
       if (!item || !warehouse || !quantity) continue;
 
       const locationId = mongoose.Types.ObjectId.isValid(location)
@@ -61,12 +62,13 @@ export const createStockIn = async (req, res) => {
 };
 
 // 📃 GET: All Stock In Records (with rack info)
+// controllers/stockInController.js
 export const getAllStockIns = async (req, res) => {
   try {
     const entries = await StockIn.find()
-      .populate("item", "name modelNo")
+      .populate("item", "name modelNo companyName")
       .populate("warehouse", "name")
-      .populate("location", "name") // ✅ include rack name
+      .populate("location", "name")
       .sort({ date: -1 });
 
     res.json(entries);

@@ -109,7 +109,7 @@ const AddStockOut = () => {
           item: itm.item,
           warehouse: itm.warehouse,
           location: itm.location || null,
-          quantity: itm.quantity,
+          quantity: Number(itm.quantity),
         })),
         purpose,
         reason,
@@ -117,6 +117,7 @@ const AddStockOut = () => {
         date,
         returnDate: purpose === "Demo" ? returnDate : null,
       };
+
       const res = await API.post("/stock-out", payload);
       toast.success(res?.data?.message || "✅ Stock Out successful");
 
@@ -144,8 +145,9 @@ const AddStockOut = () => {
         {items.map((itm, idx) => (
           <div
             key={idx}
-            className="grid md:grid-cols-4 gap-4 border-b pb-4 mb-4 relative">
-            <div className="relative">
+            className="grid md:grid-cols-12 gap-4 border-b pb-4 mb-4 relative">
+            {/* Search Item */}
+            <div className="relative col-span-12 md:col-span-4">
               <label className="block mb-1">Search Item</label>
               <input
                 type="text"
@@ -171,8 +173,9 @@ const AddStockOut = () => {
                 )}
             </div>
 
-            <div>
-              <label className="block mb-1">Select Warehouse</label>
+            {/* Warehouse */}
+            <div className="col-span-12 md:col-span-3">
+              <label className="block mb-1">Warehouse</label>
               <select
                 name="warehouse"
                 value={itm.warehouse}
@@ -188,8 +191,9 @@ const AddStockOut = () => {
               </select>
             </div>
 
-            <div>
-              <label className="block mb-1">Select Rack</label>
+            {/* Rack Location */}
+            <div className="col-span-12 md:col-span-3">
+              <label className="block mb-1">Rack Location</label>
               <select
                 name="location"
                 value={itm.location}
@@ -205,8 +209,9 @@ const AddStockOut = () => {
               </select>
             </div>
 
-            <div>
-              <label className="block mb-1">Quantity</label>
+            {/* Quantity */}
+            <div className="col-span-12 md:col-span-2">
+              <label className="block mb-1">Qty</label>
               <input
                 type="number"
                 name="quantity"
@@ -219,7 +224,7 @@ const AddStockOut = () => {
             </div>
 
             {items.length > 1 && (
-              <div className="col-span-4 text-right">
+              <div className="col-span-12 text-right">
                 <button
                   type="button"
                   onClick={() => removeItem(idx)}
@@ -231,6 +236,7 @@ const AddStockOut = () => {
           </div>
         ))}
 
+        {/* Add More Items Button */}
         <button
           type="button"
           onClick={addItem}
@@ -238,6 +244,7 @@ const AddStockOut = () => {
           + Add Another Item
         </button>
 
+        {/* Other Inputs */}
         <div className="grid md:grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block mb-1">Purpose</label>

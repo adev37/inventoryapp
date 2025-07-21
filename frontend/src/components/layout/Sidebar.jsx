@@ -135,6 +135,14 @@ const Sidebar = () => {
               Stock In
             </NavLink>
             <NavLink
+              to="/stock-report"
+              className={({ isActive }) =>
+                `${linkStyle} ${isActive ? activeStyle : ""}`
+              }>
+              <ArrowDownCircle className="w-4 h-4" />
+              Stock In Report
+            </NavLink>
+            <NavLink
               to="/stock-out"
               className={({ isActive }) =>
                 `${linkStyle} ${isActive ? activeStyle : ""}`

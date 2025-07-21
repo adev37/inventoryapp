@@ -99,23 +99,34 @@ const AddStockIn = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const hasDuplicate = items.some(
-      (item, idx) =>
-        items.findIndex(
-          (i) =>
-            i.item === item.item &&
-            i.warehouse === item.warehouse &&
-            i.location === item.location
-        ) !== idx
+    // 🚫 Skip blank entries
+    const cleanedItems = items.filter(
+      (i) => i.item && i.warehouse && i.quantity
     );
-    if (hasDuplicate) {
-      toast.error("❌ Duplicate item, warehouse & location entries found.");
+
+    if (cleanedItems.length === 0) {
+      toast.error("❌ No valid items to submit.");
       return;
+    }
+
+    // ❌ Check for exact duplicates
+    const seen = new Set();
+    for (const i of cleanedItems) {
+      const key = `${i.item}|${i.warehouse}|${i.location || "null"}`;
+      if (seen.has(key)) {
+        toast.error("❌ Duplicate item, warehouse & location entries found.");
+        return;
+      }
+      seen.add(key);
     }
 
     setLoading(true);
     try {
-      await API.post("/stock-in", { items, date, remarks });
+      await API.post("/stock-in", {
+        items: cleanedItems,
+        date,
+        remarks,
+      });
       toast.success("✅ Stock In recorded!");
       setItems([{ item: "", warehouse: "", quantity: "", location: "" }]);
       setItemSearch([""]);
@@ -135,13 +146,14 @@ const AddStockIn = () => {
       <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
         📥 Stock In
       </h2>
+
       <form
         onSubmit={handleSubmit}
         className="bg-white shadow-md p-6 rounded-lg">
         {items.map((itm, idx) => (
           <div
             key={idx}
-            className="grid md:grid-cols-4 gap-4 border-b pb-4 mb-4 relative">
+            className="grid [grid-template-columns:2fr_1fr_1fr_0.5fr] gap-4 border-b pb-4 mb-4 relative">
             {/* Search Item */}
             <div className="relative">
               <label className="block mb-1">Search Item</label>
@@ -207,21 +219,21 @@ const AddStockIn = () => {
 
             {/* Quantity */}
             <div>
-              <label className="block mb-1">Quantity</label>
+              <label className="block mb-1">Qty</label>
               <input
                 name="quantity"
                 type="number"
                 value={itm.quantity}
                 onChange={(e) => handleItemChange(idx, e)}
-                placeholder="Enter quantity"
+                placeholder="Qty"
                 required
-                className="w-full border border-gray-300 rounded px-3 py-2"
+                className="w-full border border-gray-300 rounded px-2 py-2 text-center"
                 min={1}
               />
             </div>
 
             {items.length > 1 && (
-              <div className="col-span-4 text-right">
+              <div className="col-span-full text-right">
                 <button
                   type="button"
                   onClick={() => removeItem(idx)}
@@ -233,7 +245,6 @@ const AddStockIn = () => {
           </div>
         ))}
 
-        {/* Add Another Item */}
         <button
           type="button"
           onClick={addItem}
@@ -271,7 +282,7 @@ const AddStockIn = () => {
           type="submit"
           disabled={loading}
           className={`w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-semibold transition duration-200 ${
-            loading && "opacity-60 cursor-not-allowed"
+            loading ? "opacity-60 cursor-not-allowed" : ""
           }`}>
           {loading ? "Saving..." : "💾 Save Stock In"}
         </button>

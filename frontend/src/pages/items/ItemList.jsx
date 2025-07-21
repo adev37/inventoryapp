@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import API from "../../utils/axiosInstance";
 import { toast, ToastContainer } from "react-toastify";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import "react-toastify/dist/ReactToastify.css";
 
 const ItemList = () => {
@@ -13,6 +15,11 @@ const ItemList = () => {
     companyName: "",
     minStockAlert: 0,
   });
+
+  const [searchItemModel, setSearchItemModel] = useState("");
+  const [searchCompany, setSearchCompany] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchItems();
@@ -71,37 +78,101 @@ const ItemList = () => {
 
   const handleCancel = () => setEditingId(null);
 
+  const exportToExcel = () => {
+    const exportData = filteredItems.map((item, idx) => ({
+      "Sl#": idx + 1,
+      "Item Name": item.name,
+      "Model No.": item.modelNo,
+      Company: item.companyName,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Items");
+
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+    const blob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    saveAs(blob, "Item_List.xlsx");
+  };
+
+  const filteredItems = items.filter(
+    (item) =>
+      (item.name.toLowerCase().includes(searchItemModel.toLowerCase()) ||
+        item.modelNo.toLowerCase().includes(searchItemModel.toLowerCase())) &&
+      item.companyName.toLowerCase().includes(searchCompany.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const currentItems = filteredItems.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   return (
-    <div className="p-6">
+    <div className="p-6 pb-36 relative bg-gray-50 min-h-screen">
       <ToastContainer position="top-right" autoClose={3000} />
       <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
         <span className="text-2xl">📋</span> Item Master List
       </h2>
 
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <input
+          type="text"
+          placeholder="Search by Item / Model"
+          className="border px-3 py-2 rounded w-64"
+          value={searchItemModel}
+          onChange={(e) => {
+            setSearchItemModel(e.target.value);
+            setCurrentPage(1);
+          }}
+        />
+        <input
+          type="text"
+          placeholder="Search by Company"
+          className="border px-3 py-2 rounded w-64"
+          value={searchCompany}
+          onChange={(e) => {
+            setSearchCompany(e.target.value);
+            setCurrentPage(1);
+          }}
+        />
+        <button
+          onClick={exportToExcel}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+          📄 Export to Excel
+        </button>
+      </div>
+
       {loading ? (
         <p className="text-blue-600 animate-pulse">Loading items...</p>
-      ) : items.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <p className="text-gray-600">No items found.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white shadow-md rounded-lg">
+        <div className="overflow-x-auto bg-white shadow-md rounded-lg">
+          <table className="min-w-full">
             <thead className="bg-blue-100">
               <tr>
                 <th className="text-left px-4 py-2">#</th>
                 <th className="text-left px-4 py-2">Item Name</th>
                 <th className="text-left px-4 py-2">Model No.</th>
                 <th className="text-left px-4 py-2">Company</th>
-                <th className="text-left px-4 py-2">Min Stock Alert</th>
                 <th className="text-left px-4 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => (
+              {currentItems.map((item, idx) => (
                 <tr
                   key={item._id}
                   className="border-t hover:bg-gray-50"
                   onDoubleClick={() => handleDoubleClick(item)}>
-                  <td className="px-4 py-2">{idx + 1}</td>
+                  <td className="px-4 py-2">
+                    {(currentPage - 1) * itemsPerPage + idx + 1}
+                  </td>
                   {editingId === item._id ? (
                     <>
                       <td className="px-4 py-2">
@@ -109,7 +180,7 @@ const ItemList = () => {
                           name="name"
                           value={editData.name}
                           onChange={handleChange}
-                          className="w-full border rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-200"
+                          className="w-full border rounded px-2 py-1"
                         />
                       </td>
                       <td className="px-4 py-2">
@@ -117,7 +188,7 @@ const ItemList = () => {
                           name="modelNo"
                           value={editData.modelNo}
                           onChange={handleChange}
-                          className="w-full border rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-200"
+                          className="w-full border rounded px-2 py-1"
                         />
                       </td>
                       <td className="px-4 py-2">
@@ -125,28 +196,19 @@ const ItemList = () => {
                           name="companyName"
                           value={editData.companyName}
                           onChange={handleChange}
-                          className="w-full border rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-200"
+                          className="w-full border rounded px-2 py-1"
                         />
                       </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="number"
-                          name="minStockAlert"
-                          value={editData.minStockAlert}
-                          onChange={handleChange}
-                          className="w-full border rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-200"
-                        />
-                      </td>
-                      <td className="px-4 py-2 flex gap-2">
+                      <td className="px-4 py-2 text-blue-600 underline space-x-4">
                         <button
                           onClick={handleSave}
-                          className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-1.5 rounded-lg shadow-sm transition">
-                          <span className="text-lg">💾</span> Save
+                          className="hover:text-green-700">
+                          Save
                         </button>
                         <button
                           onClick={handleCancel}
-                          className="flex items-center gap-1 border border-gray-400 hover:bg-gray-100 text-gray-700 font-semibold px-4 py-1.5 rounded-lg shadow-sm transition">
-                          <span className="text-lg">❌</span> Cancel
+                          className="hover:text-red-600">
+                          Cancel
                         </button>
                       </td>
                     </>
@@ -155,17 +217,16 @@ const ItemList = () => {
                       <td className="px-4 py-2">{item.name}</td>
                       <td className="px-4 py-2">{item.modelNo}</td>
                       <td className="px-4 py-2">{item.companyName}</td>
-                      <td className="px-4 py-2">{item.minStockAlert}</td>
-                      <td className="px-4 py-2 flex gap-2">
+                      <td className="px-4 py-2 text-blue-600 underline space-x-4">
                         <button
                           onClick={() => handleEditClick(item)}
-                          className="flex items-center gap-1 bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold px-4 py-1.5 rounded-lg shadow-sm transition">
-                          <span className="text-lg">✏️</span> Edit
+                          className="hover:text-blue-800">
+                          Edit
                         </button>
                         <button
                           onClick={() => handleDelete(item._id)}
-                          className="flex items-center gap-1 bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-1.5 rounded-lg shadow-sm transition">
-                          <span className="text-lg">🗑️</span> Delete
+                          className="hover:text-red-600">
+                          Delete
                         </button>
                       </td>
                     </>
@@ -174,6 +235,45 @@ const ItemList = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white py-3 shadow-md flex justify-center gap-2 z-10">
+          <button
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            className={`px-3 py-1 rounded ${
+              currentPage === 1
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-blue-500 text-white"
+            }`}>
+            ◀ Prev
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrentPage(i + 1)}
+              className={`px-3 py-1 rounded ${
+                currentPage === i + 1
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 text-gray-700"
+              }`}>
+              {i + 1}
+            </button>
+          ))}
+          <button
+            disabled={currentPage === totalPages}
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            className={`px-3 py-1 rounded ${
+              currentPage === totalPages
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-blue-500 text-white"
+            }`}>
+            Next ▶
+          </button>
         </div>
       )}
     </div>
