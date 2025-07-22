@@ -28,7 +28,13 @@ const ItemList = () => {
   const fetchItems = async () => {
     try {
       const res = await API.get("/items");
-      setItems(res.data);
+      console.log("Fetched items:", res.data); // 🐛 Debug log
+      const fetchedItems = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data.items)
+        ? res.data.items
+        : [];
+      setItems(fetchedItems);
     } catch (err) {
       toast.error("❌ Failed to fetch items");
       console.error("Fetch error:", err);
@@ -102,9 +108,9 @@ const ItemList = () => {
 
   const filteredItems = items.filter(
     (item) =>
-      (item.name.toLowerCase().includes(searchItemModel.toLowerCase()) ||
-        item.modelNo.toLowerCase().includes(searchItemModel.toLowerCase())) &&
-      item.companyName.toLowerCase().includes(searchCompany.toLowerCase())
+      (item.name?.toLowerCase().includes(searchItemModel.toLowerCase()) ||
+        item.modelNo?.toLowerCase().includes(searchItemModel.toLowerCase())) &&
+      item.companyName?.toLowerCase().includes(searchCompany.toLowerCase())
   );
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
