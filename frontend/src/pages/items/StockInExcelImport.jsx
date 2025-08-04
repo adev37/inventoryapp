@@ -97,7 +97,7 @@ const StockInExcelImport = () => {
     <div className="flex justify-center items-center min-h-screen bg-blue-50">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-xl">
         <h2 className="text-2xl font-semibold text-blue-700 flex items-center gap-2 mb-6">
-          <img src="/import-icon.png" alt="import" className="w-6 h-6" />
+          {/* <img src="/import-icon.png" alt="import" className="w-6 h-6" /> */}
           Import Stock In
         </h2>
 
