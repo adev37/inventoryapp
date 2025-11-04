@@ -1,18 +1,19 @@
-// src/pages/Signup.jsx
-import React, { useState } from "react";
-import axios from "axios";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSignupMutation } from "../services/inventoryApi";
 
 const Signup = () => {
   const navigate = useNavigate();
+  const [signup, { isLoading }] = useSignupMutation();
 
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
-
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
+
+  // If already logged in, bounce to home
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) navigate("/");
+  }, [navigate]);
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -24,30 +25,22 @@ const Signup = () => {
     setError("");
 
     try {
-      const res = await axios.post(
-        "https://inventoryapp-api.vercel.app/api/auth/signup",
-        form
-      );
-      const data = res.data;
-
-      if (data.success) {
+      const data = await signup(form).unwrap(); // { success, message, ... }
+      if (data?.success) {
         alert("🎉 Signup successful!");
         navigate("/login");
       } else {
-        setError(data.message || "Signup failed.");
+        setError(data?.message || "Signup failed.");
       }
     } catch (err) {
-      console.error("Signup error:", err);
-      setError(err.response?.data?.message || "Signup failed.");
+      setError(err?.data?.message || "Signup failed.");
     }
   };
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded shadow">
       <h2 className="text-2xl font-bold mb-4 text-center">📝 Sign Up</h2>
-      {error && (
-        <p className="text-red-600 mb-3 text-sm text-center">{error}</p>
-      )}
+      {error && <p className="text-red-600 mb-3 text-sm text-center">{error}</p>}
 
       <form onSubmit={handleSignup} className="space-y-4">
         <input
@@ -82,8 +75,10 @@ const Signup = () => {
 
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white font-semibold py-2 rounded hover:bg-blue-700 transition">
-          Sign Up
+          disabled={isLoading}
+          className="w-full bg-blue-600 text-white font-semibold py-2 rounded hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isLoading ? "Creating..." : "Sign Up"}
         </button>
       </form>
     </div>

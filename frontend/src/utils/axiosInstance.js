@@ -1,8 +1,14 @@
-// utils/axiosInstance.js
+// src/utils/axiosInstance.js
 import axios from "axios";
 
+// Prefer env var; default to /api so the Vite proxy handles it in dev
+const RAW_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+// Normalize (remove trailing slashes)
+const BASE_URL = RAW_BASE.replace(/\/+$/, "");
+
 const API = axios.create({
-  baseURL: "https://inventoryapp-api.vercel.app/api", // Changed from deployed URL to local
+  baseURL: BASE_URL, // e.g. "/api" (dev) or "https://.../api" (prod)
 });
 
 API.interceptors.request.use((config) => {
