@@ -5,24 +5,21 @@ import "react-toastify/dist/ReactToastify.css";
 import {
   useGetItemsQuery,
   useGetWarehousesQuery,
-  useLazyGetCurrentStockQuery, // lazy hook
+  useLazyGetCurrentStockQuery,
   useCreateStockOutMutation,
 } from "../../services/inventoryApi";
 
 const AddStockOut = () => {
-  // items + warehouses
   const { data: itemsResult = [] } = useGetItemsQuery();
   const { data: allWarehouses = [] } = useGetWarehousesQuery();
   const [createStockOut, { isLoading }] = useCreateStockOutMutation();
 
-  // normalize items result (supports both array and {items:[]})
   const allItems = Array.isArray(itemsResult)
     ? itemsResult
     : Array.isArray(itemsResult.items)
     ? itemsResult.items
     : [];
 
-  // lazy current stock fetcher
   const [triggerGetCurrentStock] = useLazyGetCurrentStockQuery();
 
   const [items, setItems] = useState([
@@ -36,13 +33,14 @@ const AddStockOut = () => {
   const [tenderNo, setTenderNo] = useState("");
   const [date, setDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
-  const [rackOptions, setRackOptions] = useState({}); // { [rowIndex]: [{locationId, location, quantity}, ...] }
+  const [rackOptions, setRackOptions] = useState({});
 
-  // fetch racks for a row when both item & warehouse are chosen
   const fetchRackOptions = async (index, item, warehouse) => {
     try {
       const data = await triggerGetCurrentStock(
-        `item=${encodeURIComponent(item)}&warehouse=${encodeURIComponent(warehouse)}`
+        `item=${encodeURIComponent(item)}&warehouse=${encodeURIComponent(
+          warehouse
+        )}`
       ).unwrap();
       const valid = (data || []).filter((entry) => entry.quantity > 0);
       setRackOptions((prev) => ({ ...prev, [index]: valid }));
@@ -55,19 +53,16 @@ const AddStockOut = () => {
 
   const handleItemChange = (index, e) => {
     const { name, value } = e.target;
-
     setItems((prev) => {
       const updated = [...prev];
       updated[index][name] = value;
 
-      // when item or warehouse changes, clear selected location and options
       if (name === "item" || name === "warehouse") {
         updated[index].location = "";
         setRackOptions((opts) => ({ ...opts, [index]: [] }));
         const { item, warehouse } = updated[index];
         if (item && warehouse) fetchRackOptions(index, item, warehouse);
       }
-
       return updated;
     });
   };
@@ -84,11 +79,10 @@ const AddStockOut = () => {
       const q = value.toLowerCase();
       const filtered = allItems.filter(
         (i) =>
-          i.name.toLowerCase().includes(q) ||
-          i.modelNo.toLowerCase().includes(q)
+          i.name?.toLowerCase().includes(q) ||
+          i.modelNo?.toLowerCase().includes(q)
       );
       setItemSuggestions(filtered);
-      // clear bound item id while typing
       handleItemChange(index, { target: { name: "item", value: "" } });
     } else {
       setItemSuggestions([]);
@@ -107,7 +101,10 @@ const AddStockOut = () => {
   };
 
   const addItem = () => {
-    setItems((prev) => [...prev, { item: "", warehouse: "", location: "", quantity: "" }]);
+    setItems((prev) => [
+      ...prev,
+      { item: "", warehouse: "", location: "", quantity: "" },
+    ]);
     setItemSearch((prev) => [...prev, ""]);
   };
 
@@ -124,7 +121,6 @@ const AddStockOut = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
       const payload = {
         items: items.map((itm) => ({
@@ -159,13 +155,20 @@ const AddStockOut = () => {
   return (
     <div className="p-6">
       <ToastContainer position="top-right" autoClose={4000} theme="colored" />
-      <h2 className="text-2xl font-bold mb-4">📤 Stock Out</h2>
+      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">📤 Stock Out</h2>
 
-      <form onSubmit={handleSubmit} className="bg-white shadow-md p-6 rounded-lg">
+      {/* match Stock In width behavior; prevent overflow */}
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white shadow-md p-6 rounded-lg"
+      >
         {items.map((itm, idx) => (
-          <div key={idx} className="grid md:grid-cols-12 gap-4 border-b pb-4 mb-4 relative">
-            {/* Search Item */}
-            <div className="relative col-span-12 md:col-span-4">
+          <div
+            key={idx}
+            className="grid [grid-template-columns:2fr_1fr_1fr_0.5fr] gap-4 border-b pb-4 mb-4 relative"
+          >
+            {/* Search Item (same width as Stock In) */}
+            <div className="relative min-w-0">
               <label className="block mb-1">Search Item</label>
               <input
                 type="text"
@@ -193,7 +196,7 @@ const AddStockOut = () => {
             </div>
 
             {/* Warehouse */}
-            <div className="col-span-12 md:col-span-3">
+            <div className="min-w-0">
               <label className="block mb-1">Warehouse</label>
               <select
                 name="warehouse"
@@ -212,7 +215,7 @@ const AddStockOut = () => {
             </div>
 
             {/* Rack Location */}
-            <div className="col-span-12 md:col-span-3">
+            <div className="min-w-0">
               <label className="block mb-1">Rack Location</label>
               <select
                 name="location"
@@ -230,8 +233,8 @@ const AddStockOut = () => {
               </select>
             </div>
 
-            {/* Quantity */}
-            <div className="col-span-12 md:col-span-2">
+            {/* Qty */}
+            <div className="min-w-0">
               <label className="block mb-1">Qty</label>
               <input
                 type="number"
@@ -239,13 +242,13 @@ const AddStockOut = () => {
                 min={1}
                 value={itm.quantity}
                 onChange={(e) => handleItemChange(idx, e)}
-                className="w-full border px-3 py-2 rounded"
+                className="w-full border px-3 py-2 rounded text-center"
                 required
               />
             </div>
 
             {items.length > 1 && (
-              <div className="col-span-12 text-right">
+              <div className="col-span-full text-right">
                 <button
                   type="button"
                   onClick={() => removeItem(idx)}
@@ -258,7 +261,6 @@ const AddStockOut = () => {
           </div>
         ))}
 
-        {/* Add More Items */}
         <button
           type="button"
           onClick={addItem}
@@ -267,7 +269,6 @@ const AddStockOut = () => {
           + Add Another Item
         </button>
 
-        {/* Other Inputs */}
         <div className="grid md:grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block mb-1">Purpose</label>
