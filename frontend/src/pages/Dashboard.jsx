@@ -1,4 +1,3 @@
-// src/pages/Dashboard.jsx
 import React, { useMemo } from "react";
 import {
   useGetCurrentStockSummaryQuery,
@@ -25,36 +24,36 @@ import {
   FaClock,
 } from "react-icons/fa";
 
-// Colors for the pie slices
 const COLORS = ["#FF8042", "#FFBB28", "#00C49F", "#0088FE", "#A28EFF"];
 
 const Dashboard = () => {
   // --------- Data (RTK Query) ---------
   const { data: summaryData, isFetching: loadingSummary } =
-    useGetCurrentStockSummaryQuery();
+    useGetCurrentStockSummaryQuery(undefined, { refetchOnMountOrArgChange: true });
 
   const { data: stockData, isFetching: loadingStock } =
-    useGetCurrentStockQuery("");
+    useGetCurrentStockQuery("", { refetchOnMountOrArgChange: true });
 
   const { data: stockOutData, isFetching: loadingStockOut } =
-    useListStockOutQuery();
+    useListStockOutQuery(undefined, { refetchOnMountOrArgChange: true });
 
   const { data: demoPendingData, isFetching: loadingDemo } =
-    useGetPendingDemoReturnsQuery();
+    useGetPendingDemoReturnsQuery(undefined, { refetchOnMountOrArgChange: true });
 
-  // Optional (not used directly but keeps cache warm if needed later)
+  // Optional (keeps cache warm if needed later)
   useGetWarehousesQuery();
   useGetItemsQuery();
 
   // --------- Normalization helpers ---------
-  const stocks = useMemo(() => {
-    // API may return an array of rows
-    return Array.isArray(stockData) ? stockData : [];
-  }, [stockData]);
+  const stocks = useMemo(
+    () => (Array.isArray(stockData) ? stockData : []),
+    [stockData]
+  );
 
-  const stockOutRows = useMemo(() => {
-    return Array.isArray(stockOutData) ? stockOutData : [];
-  }, [stockOutData]);
+  const stockOutRows = useMemo(
+    () => (Array.isArray(stockOutData) ? stockOutData : []),
+    [stockOutData]
+  );
 
   const stats = useMemo(() => {
     const s = summaryData || {};
@@ -65,18 +64,19 @@ const Dashboard = () => {
     };
   }, [summaryData]);
 
-  // Count Stock Out (Sale)
   const saleOutCount = useMemo(
-    () => stockOutRows.filter((r) => (r.purpose || "").toLowerCase() === "sale").length,
+    () =>
+      stockOutRows.filter(
+        (r) => (r.purpose || "").toLowerCase() === "sale"
+      ).length,
     [stockOutRows]
   );
 
-  // Demo pending returns count
-  const demoPendingCount = useMemo(() => {
-    return Array.isArray(demoPendingData) ? demoPendingData.length : 0;
-  }, [demoPendingData]);
+  const demoPendingCount = useMemo(
+    () => (Array.isArray(demoPendingData) ? demoPendingData.length : 0),
+    [demoPendingData]
+  );
 
-  // Pie chart: group stock outs by purpose
   const pieData = useMemo(() => {
     const counts = stockOutRows.reduce((acc, row) => {
       const key = row.purpose || "Unknown";
@@ -86,7 +86,8 @@ const Dashboard = () => {
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [stockOutRows]);
 
-  const anyLoading = loadingSummary || loadingStock || loadingStockOut || loadingDemo;
+  const anyLoading =
+    loadingSummary || loadingStock || loadingStockOut || loadingDemo;
 
   return (
     <div className="p-6">
@@ -94,9 +95,15 @@ const Dashboard = () => {
       <div className="bg-gradient-to-r from-blue-100 to-white rounded-xl px-6 py-4 mb-6 shadow-sm">
         <h1 className="text-2xl font-semibold text-gray-800">Inventory Dashboard</h1>
         <p className="text-gray-600">
-          Welcome <strong>{JSON.parse(localStorage.getItem("user") || "{}")?.name || "Guest"}</strong>{" "}
+          Welcome{" "}
+          <strong>
+            {JSON.parse(localStorage.getItem("user") || "{}")?.name || "Guest"}
+          </strong>{" "}
           <span className="text-sm text-gray-500">
-            ({JSON.parse(localStorage.getItem("user") || "{}")?.role || "Viewer"})
+            (
+            {JSON.parse(localStorage.getItem("user") || "{}")?.role ||
+              "Viewer"}
+            )
           </span>
         </p>
       </div>
@@ -151,7 +158,15 @@ const Dashboard = () => {
           ) : pieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label
+                >
                   {pieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}

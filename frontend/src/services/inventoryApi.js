@@ -1,4 +1,3 @@
-// src/services/inventoryApi.js
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 // Prefer env var; default to /api so the Vite proxy handles it in dev
@@ -15,6 +14,12 @@ export const inventoryApi = createApi({
       return headers;
     },
   }),
+
+  // ✅ ensure stale data refreshes on focus/reconnect
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
+  keepUnusedDataFor: 60,
+
   tagTypes: [
     "Items",
     "Warehouses",
@@ -27,6 +32,7 @@ export const inventoryApi = createApi({
     "Transfers",
     "Auth",
   ],
+
   endpoints: (builder) => ({
     // ---------- AUTH ----------
     login: builder.mutation({
@@ -41,17 +47,24 @@ export const inventoryApi = createApi({
     // ---------- ITEMS ----------
     getItems: builder.query({
       query: () => "/items",
-      providesTags: (result) =>
-        result?.items
+      // ✅ works with either an array or { items: [...] }
+      providesTags: (result) => {
+        const list = Array.isArray(result) ? result : result?.items || [];
+        return list.length
           ? [
-              ...result.items.map((i) => ({ type: "Items", id: i._id })),
+              ...list.map((i) => ({ type: "Items", id: i._id })),
               { type: "Items", id: "LIST" },
             ]
-          : [{ type: "Items", id: "LIST" }],
+          : [{ type: "Items", id: "LIST" }];
+      },
     }),
     addItem: builder.mutation({
       query: (body) => ({ url: "/items", method: "POST", body }),
-      invalidatesTags: [{ type: "Items", id: "LIST" }],
+      // ✅ also invalidate stock summary so Dashboard refetches
+      invalidatesTags: [
+        { type: "Items", id: "LIST" },
+        { type: "CurrentStock", id: "SUMMARY" },
+      ],
     }),
     updateItem: builder.mutation({
       query: ({ id, ...body }) => ({
@@ -62,6 +75,7 @@ export const inventoryApi = createApi({
       invalidatesTags: (r, e, { id }) => [
         { type: "Items", id },
         { type: "Items", id: "LIST" },
+        { type: "CurrentStock", id: "SUMMARY" }, // ✅
       ],
     }),
     deleteItem: builder.mutation({
@@ -69,6 +83,7 @@ export const inventoryApi = createApi({
       invalidatesTags: (r, e, id) => [
         { type: "Items", id },
         { type: "Items", id: "LIST" },
+        { type: "CurrentStock", id: "SUMMARY" }, // ✅
       ],
     }),
 
@@ -155,6 +170,7 @@ export const inventoryApi = createApi({
         { type: "StockIn", id: "LIST" },
         { type: "CurrentStock", id: "LIST" },
         { type: "Ledger", id: "LIST" },
+        { type: "CurrentStock", id: "SUMMARY" }, // optional, if summary includes totals from Stock In
       ],
     }),
     getStockInChallan: builder.query({
@@ -174,6 +190,7 @@ export const inventoryApi = createApi({
         { type: "CurrentStock", id: "LIST" },
         { type: "Ledger", id: "LIST" },
         { type: "DemoReturns", id: "LIST" },
+        { type: "CurrentStock", id: "SUMMARY" }, // keep dashboard in sync
       ],
     }),
     getStockOutChallan: builder.query({
@@ -199,6 +216,7 @@ export const inventoryApi = createApi({
         { type: "DemoReturns", id: "REPORT" },
         { type: "CurrentStock", id: "LIST" },
         { type: "Ledger", id: "LIST" },
+        { type: "CurrentStock", id: "SUMMARY" },
       ],
     }),
     getDemoReturnReport: builder.query({
@@ -217,6 +235,7 @@ export const inventoryApi = createApi({
         { type: "Transfers", id: "LIST" },
         { type: "CurrentStock", id: "LIST" },
         { type: "Ledger", id: "LIST" },
+        { type: "CurrentStock", id: "SUMMARY" },
       ],
     }),
 
@@ -226,6 +245,7 @@ export const inventoryApi = createApi({
       invalidatesTags: [
         { type: "CurrentStock", id: "LIST" },
         { type: "Ledger", id: "LIST" },
+        { type: "CurrentStock", id: "SUMMARY" },
       ],
     }),
   }),
