@@ -1,21 +1,21 @@
 // src/utils/axiosInstance.js
 import axios from "axios";
 
-// Prefer env var; default to /api so the Vite proxy handles it in dev
-const RAW_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+// Same base selection as RTK Query (keeps Axios helpers consistent)
+const fromEnv = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
+const onVercelUI =
+  typeof window !== "undefined" &&
+  /vercel\.app$/i.test(window.location.hostname);
 
-// Normalize (remove trailing slashes)
-const BASE_URL = RAW_BASE.replace(/\/+$/, "");
+const BASE_URL =
+  fromEnv ||
+  (onVercelUI ? "https://inventoryapp-api.vercel.app/api" : "/api");
 
-const API = axios.create({
-  baseURL: BASE_URL, // e.g. "/api" (dev) or "https://.../api" (prod)
-});
+const API = axios.create({ baseURL: BASE_URL });
 
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 

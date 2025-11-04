@@ -1,13 +1,24 @@
+// src/services/inventoryApi.js
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-// Prefer env var; default to /api so the Vite proxy handles it in dev
-const RAW_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
-const BASE_URL = RAW_BASE.replace(/\/+$/, ""); // strip trailing slash
+/**
+ * ✅ Pick a correct base URL in every environment.
+ * - DEV (Vite): falls back to "/api" (handled by vite proxy).
+ * - PROD (Vercel UI): use VITE_API_BASE_URL if set, otherwise hard-fallback to your API URL.
+ */
+const fromEnv = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
+const onVercelUI =
+  typeof window !== "undefined" &&
+  /vercel\.app$/i.test(window.location.hostname);
+
+const BASE_URL =
+  fromEnv ||
+  (onVercelUI ? "https://inventoryapp-api.vercel.app/api" : "/api");
 
 export const inventoryApi = createApi({
   reducerPath: "inventoryApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: BASE_URL, // e.g. "/api" (dev) or "https://.../api" (prod)
+    baseUrl: BASE_URL,
     prepareHeaders: (headers) => {
       const token = localStorage.getItem("token");
       if (token) headers.set("authorization", `Bearer ${token}`);
@@ -15,10 +26,10 @@ export const inventoryApi = createApi({
     },
   }),
 
-  // ✅ ensure stale data refreshes on focus/reconnect
-  refetchOnFocus: true,
-  refetchOnReconnect: true,
-  keepUnusedDataFor: 60,
+  // ✅ sane cache behavior
+  refetchOnFocus: true,        // refetch when the tab regains focus
+  refetchOnReconnect: true,    // refetch after network reconnects
+  keepUnusedDataFor: 120,      // keep data warm for 2 minutes
 
   tagTypes: [
     "Items",
@@ -47,7 +58,6 @@ export const inventoryApi = createApi({
     // ---------- ITEMS ----------
     getItems: builder.query({
       query: () => "/items",
-      // ✅ works with either an array or { items: [...] }
       providesTags: (result) => {
         const list = Array.isArray(result) ? result : result?.items || [];
         return list.length
@@ -60,7 +70,6 @@ export const inventoryApi = createApi({
     }),
     addItem: builder.mutation({
       query: (body) => ({ url: "/items", method: "POST", body }),
-      // ✅ also invalidate stock summary so Dashboard refetches
       invalidatesTags: [
         { type: "Items", id: "LIST" },
         { type: "CurrentStock", id: "SUMMARY" },
@@ -75,7 +84,7 @@ export const inventoryApi = createApi({
       invalidatesTags: (r, e, { id }) => [
         { type: "Items", id },
         { type: "Items", id: "LIST" },
-        { type: "CurrentStock", id: "SUMMARY" }, // ✅
+        { type: "CurrentStock", id: "SUMMARY" },
       ],
     }),
     deleteItem: builder.mutation({
@@ -83,7 +92,7 @@ export const inventoryApi = createApi({
       invalidatesTags: (r, e, id) => [
         { type: "Items", id },
         { type: "Items", id: "LIST" },
-        { type: "CurrentStock", id: "SUMMARY" }, // ✅
+        { type: "CurrentStock", id: "SUMMARY" },
       ],
     }),
 
@@ -121,7 +130,7 @@ export const inventoryApi = createApi({
       ],
     }),
 
-    // ---------- LOCATIONS (Racks) ----------
+    // ---------- LOCATIONS ----------
     getLocations: builder.query({
       query: () => "/locations",
       providesTags: (result) =>
@@ -170,7 +179,7 @@ export const inventoryApi = createApi({
         { type: "StockIn", id: "LIST" },
         { type: "CurrentStock", id: "LIST" },
         { type: "Ledger", id: "LIST" },
-        { type: "CurrentStock", id: "SUMMARY" }, // optional, if summary includes totals from Stock In
+        { type: "CurrentStock", id: "SUMMARY" },
       ],
     }),
     getStockInChallan: builder.query({
@@ -190,7 +199,7 @@ export const inventoryApi = createApi({
         { type: "CurrentStock", id: "LIST" },
         { type: "Ledger", id: "LIST" },
         { type: "DemoReturns", id: "LIST" },
-        { type: "CurrentStock", id: "SUMMARY" }, // keep dashboard in sync
+        { type: "CurrentStock", id: "SUMMARY" },
       ],
     }),
     getStockOutChallan: builder.query({
@@ -252,29 +261,20 @@ export const inventoryApi = createApi({
 });
 
 export const {
-  // auth
   useLoginMutation,
   useSignupMutation,
-
-  // items
   useGetItemsQuery,
   useAddItemMutation,
   useUpdateItemMutation,
   useDeleteItemMutation,
-
-  // warehouses
   useGetWarehousesQuery,
   useAddWarehouseMutation,
   useUpdateWarehouseMutation,
   useDeleteWarehouseMutation,
-
-  // locations
   useGetLocationsQuery,
   useAddLocationMutation,
   useUpdateLocationByNameMutation,
   useDeleteLocationMutation,
-
-  // stock / ledger / demo / transfers
   useGetCurrentStockQuery,
   useLazyGetCurrentStockQuery,
   useGetCurrentStockSummaryQuery,
