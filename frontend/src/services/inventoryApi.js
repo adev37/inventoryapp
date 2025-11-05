@@ -13,7 +13,7 @@ const onVercelUI =
 
 const BASE_URL =
   fromEnv ||
-  (onVercelUI ? "https://inventoryapp-api.vercel.app/api" : "/api");
+  (onVercelUI ? "https://inventoryapp-api.vercel.app" : "/api");
 
 export const inventoryApi = createApi({
   reducerPath: "inventoryApi",

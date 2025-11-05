@@ -4,6 +4,21 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useGetLedgerQuery } from "../../services/inventoryApi";
 
+// helper: compute a sliding window of page numbers
+const getVisiblePages = (total, current, windowSize = 10) => {
+  if (total <= windowSize) return { pages: Array.from({ length: total }, (_, i) => i + 1) };
+
+  const blockStart = Math.floor((current - 1) / windowSize) * windowSize + 1; // 1,11,21,...
+  const blockEnd = Math.min(blockStart + windowSize - 1, total);
+  const pages = Array.from({ length: blockEnd - blockStart + 1 }, (_, i) => blockStart + i);
+
+  return {
+    pages,
+    showLeftEllipsis: blockStart > 1,
+    showRightEllipsis: blockEnd < total,
+  };
+};
+
 const StockLedger = () => {
   // ✅ use the correct RTK Query hook
   const { data: ledger = [], isLoading } = useGetLedgerQuery();
@@ -30,7 +45,8 @@ const StockLedger = () => {
   }, [ledger]);
 
   const allPurposes = useMemo(
-    () => Array.from(new Set((entries || []).map((e) => e.purpose).filter(Boolean))),
+    () =>
+      Array.from(new Set((entries || []).map((e) => e.purpose).filter(Boolean))),
     [entries]
   );
 
@@ -83,12 +99,11 @@ const StockLedger = () => {
     saveAs(blob, "Stock_Ledger.xlsx");
   };
 
-  const itemsPerPg = itemsPerPage;
-  const indexOfLast = currentPage * itemsPerPg;
-  const indexOfFirst = indexOfLast - itemsPerPg;
+  const indexOfLast = currentPage * itemsPerPage;
+  const indexOfFirst = indexOfLast - itemsPerPage;
   const currentItems = filteredEntries.slice(indexOfFirst, indexOfLast);
   const totalPages =
-    Math.ceil((filteredEntries.length || 0) / itemsPerPg) || 1;
+    Math.ceil((filteredEntries.length || 0) / itemsPerPage) || 1;
 
   const handleReset = () => {
     setSearchText("");
@@ -211,45 +226,83 @@ const StockLedger = () => {
         )}
       </div>
 
-      {/* Pagination */}
+      {/* Sliding-window pagination (10-wide) */}
       {totalPages > 1 && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-50 bg-white px-4 py-2 shadow rounded">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-50 bg-white px-4 py-2 shadow rounded">
+          {/* Prev */}
           <button
             disabled={currentPage === 1}
-            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
             className={`px-3 py-1 rounded ${
               currentPage === 1
                 ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                 : "bg-blue-500 text-white"
             }`}
           >
-            ◀️ Prev
+            ◀ Prev
           </button>
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`px-3 py-1 rounded ${
-                currentPage === i + 1
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700"
-              }`}
-            >
-              {i + 1}
-            </button>
-          ))}
+
+          {(() => {
+            const { pages, showLeftEllipsis, showRightEllipsis } = getVisiblePages(
+              totalPages,
+              currentPage,
+              10
+            );
+
+            return (
+              <>
+                {showLeftEllipsis && (
+                  <>
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      className="px-3 py-1 rounded bg-gray-200 text-gray-700"
+                    >
+                      1
+                    </button>
+                    <span className="px-1 text-gray-500">…</span>
+                  </>
+                )}
+
+                {pages.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p)}
+                    className={`px-3 py-1 rounded ${
+                      currentPage === p
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+
+                {showRightEllipsis && (
+                  <>
+                    <span className="px-1 text-gray-500">…</span>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      className="px-3 py-1 rounded bg-gray-200 text-gray-700"
+                    >
+                      {totalPages}
+                    </button>
+                  </>
+                )}
+              </>
+            );
+          })()}
+
+          {/* Next */}
           <button
             disabled={currentPage === totalPages}
-            onClick={() =>
-              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-            }
+            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
             className={`px-3 py-1 rounded ${
               currentPage === totalPages
                 ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                 : "bg-blue-500 text-white"
             }`}
           >
-            Next ▶️
+            Next ▶
           </button>
         </div>
       )}
